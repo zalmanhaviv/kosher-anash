@@ -223,7 +223,7 @@ button{cursor:pointer}
 <script>
 const PLACES = /*DATA*/;
 const CITY = /*CITIES*/;
-let DATA_UPDATED = /*UPDATED*/;
+let DATA_UPDATED = /*UPDATED*/, DATA_REV = /*REV*/;
 </script>
 <script>
 (() => {
@@ -668,12 +668,12 @@ const RAW = 'https://raw.githubusercontent.com/zalmanhaviv/kosher-anash/main/dat
 const okPlace = p => p && typeof p.n === 'string' && p.n && typeof p.h === 'string' && p.h && HC[p.hc] && Array.isArray(p.t) && typeof p.c === 'string';
 Promise.all(['places.json', 'meta.json'].map(f => fetch(RAW + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)))
   .then(([a, meta]) => {
-    if (!Array.isArray(a) || a.length < 100 || !a.every(okPlace) || !meta || !meta.updated || meta.updated < DATA_UPDATED) return;
-    if (meta.updated === DATA_UPDATED && a.length === PLACES.length) return;
+    // rev goes up with every data change, so a same-day update is picked up too
+    if (!Array.isArray(a) || a.length < 100 || !a.every(okPlace) || !meta || !meta.updated || (meta.rev | 0) <= DATA_REV) return;
     const cur = sel != null ? PLACES[sel] : null;
     PLACES.length = 0;
     a.forEach((p, i) => { p.id = i; p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')); PLACES.push(p); });
-    DATA_UPDATED = meta.updated;
+    DATA_UPDATED = meta.updated; DATA_REV = meta.rev | 0;
     if (cur) { const m = PLACES.find(p => p.n === cur.n && p.s === cur.s && p.c === cur.c && p.k === cur.k); sel = m ? m.id : null; }
     shown = 40; render();
   }).catch(() => {});
