@@ -9,7 +9,7 @@ KINDS_PREFIX = ('מסעדה', 'מוצרים', 'קייטרינג', 'מאפייה'
 
 def check(places, cities):
     errors, warnings = [], []
-    seen = set()
+    seen = set(); uids = set()
     for i, p in enumerate(places):
         tag = f"#{i} {p.get('n', '?')}"
         for f in ('n', 'c', 'k', 'h', 'hc', 'f'):
@@ -23,6 +23,12 @@ def check(places, cities):
             v = p.get(f)
             if isinstance(v, str) and re.search(r'[<>`]|javascript:', v, re.I):
                 errors.append(f"{tag}: field '{f}' contains markup characters")
+        u = p.get('u')
+        if not isinstance(u, str) or not u:
+            errors.append(f"{tag}: missing permanent id 'u' (used in shared links)")
+        elif u in uids:
+            errors.append(f"{tag}: id '{u}' is used twice")
+        uids.add(u)
         key = (p.get('n'), p.get('s'), p.get('c'), p.get('k'), p.get('h'))
         if key in seen: warnings.append(f"{tag}: duplicate name+street+city")
         seen.add(key)

@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff"><link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials"><link rel="apple-touch-icon" href="/icon-180.png"><link rel="icon" type="image/png" href="/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="כשר לאנ״ש">
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="מסעדות כשרות לאנ״ש לידך: מה פתוח עכשיו, הכשרות כפי שבמאגר מסעדות לאנ״ש חב״ד, ומרחק. גם לתכנון יום שישי.">
+<meta property="og:type" content="website"><meta property="og:locale" content="he_IL"><meta property="og:site_name" content="כשר לאנ״ש">
+<meta property="og:title" content="כשר לאנ״ש – מסעדות כשרות לידך">
+<meta property="og:description" content="מה פתוח עכשיו, הכשרות והמרחק. לפי מאגר מסעדות לאנ״ש חב״ד.">
+<meta property="og:image" content="https://vermillion-mousse-138977.netlify.app/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image"><link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials"><link rel="apple-touch-icon" href="/icon-180.png"><link rel="icon" type="image/png" href="/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="כשר לאנ״ש">
 <title>כשר לאנ״ש – מסעדות כשרות לידך</title>
 <link rel="stylesheet" href="/vendor/fonts.css">
 <style>
@@ -37,7 +43,7 @@ button{cursor:pointer}
 .topbar{position:fixed;top:calc(10px + var(--st));right:12px;left:12px;z-index:30;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .topbar>*{pointer-events:auto}
 .sbar{display:flex;align-items:center;gap:4px;height:52px;background:var(--card);border-radius:var(--r-md);box-shadow:var(--sh1);padding:0 6px 0 8px}
-.brandmark{flex:0 0 auto;font-weight:800;font-size:var(--fs-input);color:var(--brand);padding:0 8px 0 4px;letter-spacing:-.2px;white-space:nowrap}
+.brandmark{margin:0;flex:0 0 auto;font-weight:800;font-size:var(--fs-input);color:var(--brand);padding:0 8px 0 4px;letter-spacing:-.2px;white-space:nowrap}
 .sbar .sep{width:1px;height:24px;background:var(--line)}
 .sbar input{flex:1;min-width:0;border:0;outline:0;background:transparent;height:100%;font-size:var(--fs-input);padding:0 8px}
 .sbar input::placeholder{color:var(--mut)}
@@ -89,7 +95,13 @@ button{cursor:pointer}
 .btn.ghost{background:var(--bg);color:var(--ink)}
 .note{margin:4px 16px 8px;padding:10px 12px;border-radius:var(--r-sm);background:var(--notebg);color:var(--notefg);font-size:var(--fs-md);line-height:1.45}
 .foot{padding:18px 16px 4px;font-size:var(--fs-sm);color:var(--mut);line-height:1.6}
-.foot a{color:var(--sub)}
+.foot a{color:var(--sub);display:inline-block;padding:var(--s3) 0}
+.sbar:focus-within{box-shadow:0 0 0 2px var(--brand),var(--sh1)}
+.det .hd{display:flex;align-items:flex-start;gap:var(--s2)}.det .hd h3{flex:1}
+.fav{flex:0 0 44px;height:44px;border:0;background:transparent;color:var(--landa);display:grid;place-items:center;border-radius:var(--r-sm)}
+.recent{display:flex;gap:var(--s2);overflow-x:auto;scrollbar-width:none;padding:0 var(--s4) var(--s2)}.recent button{flex:0 0 auto;min-height:44px;padding:0 var(--s3);border:1px solid var(--line);border-radius:var(--r-pill);background:var(--card);font-weight:600;font-size:var(--fs-md);color:var(--ink)}
+.offl{padding:6px var(--s3);border-radius:var(--r-md);background:var(--notebg);color:var(--notefg);font-size:var(--fs-sm);font-weight:700;text-align:center;box-shadow:var(--sh1)}.offl[hidden]{display:none}
+.instc{margin:var(--s1) var(--s4) var(--s2);padding:var(--s3) var(--s4);border-radius:var(--r-md);background:var(--brandbg);display:flex;gap:var(--s3);align-items:center}.instc p{flex:1;margin:0;font-size:var(--fs-md)}
 
 /* ---------- place detail ---------- */
 .det{padding:0 16px}
@@ -175,14 +187,16 @@ button{cursor:pointer}
 <svg id="svgmap" hidden></svg>
 
 <div class="topbar">
-  <div class="sbar">
-    <span class="brandmark">כשר לאנ״ש</span>
+  <div id="offl" class="offl" role="status" hidden></div>
+  <div class="sbar" role="search">
+    <h1 class="brandmark">כשר לאנ״ש</h1>
     <span class="sep"></span>
     <input id="q" type="search" placeholder="חיפוש מקום, אוכל או רחוב" autocomplete="off" enterkeyhint="search" aria-label="חיפוש">
     <button class="ibtn" id="fBtn" aria-label="סינון"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg><span class="badge" id="fN"></span></button>
   </div>
   <div class="chips" id="chips">
     <button class="chip" id="cOpen" aria-pressed="false"><span class="d"></span><span id="cOpenT">פתוח עכשיו</span></button>
+    <button class="chip" id="cFri" aria-pressed="false" hidden>פתוח בשישי</button>
     <button class="chip" id="cWhen" aria-haspopup="dialog"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="cWhenT">מתי?</span></button>
     <button class="chip" data-t="בשרי">בשרי</button>
     <button class="chip" data-t="חלבי">חלבי</button>
@@ -197,7 +211,7 @@ button{cursor:pointer}
 
 <button class="fab" id="meBtn" aria-label="המיקום שלי"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
 
-<section class="sheet" id="sheet" aria-label="תוצאות">
+<section class="sheet" id="sheet" role="main" aria-label="תוצאות">
   <div class="shead" id="shead"><div class="grab"></div><div class="stitle"><h2 id="sTitle">מקומות כשרים</h2><span id="sSub" aria-live="polite"></span></div></div>
   <div class="sbody" id="sbody"></div>
 </section>
@@ -209,7 +223,7 @@ button{cursor:pointer}
 <script>
 const PLACES = /*DATA*/;
 const CITY = /*CITIES*/;
-let DATA_UPDATED = /*UPDATED*/;
+let DATA_UPDATED = /*UPDATED*/, DATA_REV = /*REV*/;
 </script>
 <script>
 (() => {
@@ -270,7 +284,9 @@ const km = (a, b) => { const dLa = rad(b.lat-a.lat), dLo = rad(b.lng-a.lng); con
 const cityLL = c => CITY[c] ? { lat:CITY[c][0], lng:CITY[c][1] } : null;
 const exact = p => !!(p.g && p.g.loc);
 const LLof = p => exact(p) ? p.g.loc : cityLL(p.c);
-const distOf = p => { const ll = LLof(p); return ME && ll ? km(ME, ll) : null; };
+const NEAR_KM = 12;
+const REF = () => ME || (S.city ? cityLL(S.city) : null);
+const distOf = p => { const ll = LLof(p), r = REF(); return r && ll ? km(r, ll) : null; };
 function distTxt(p, d) {
   if (d == null) return '';
   if (!exact(p)) return d < 4 ? 'ב' + p.c : '~' + (d < 10 ? d.toFixed(1) : Math.round(d)) + ' ק״מ';
@@ -292,14 +308,33 @@ function srcLine(g) {
   const [y, m] = c.split('-').map(Number), n = IL(), age = (n.getFullYear() - y) * 12 + n.getMonth() + 1 - m;
   return `<div class="src">לפי Google Maps, נבדק ב${MONTHS[m - 1]} ${y}. ${age > STALE_MONTHS ? '<span class="stale">ייתכן שהשעות השתנו מאז.</span> ' : ''}כדאי לוודא לפני שיוצאים.</div>`;
 }
-async function sharePlace(p, url) {
-  const text = [p.n, [p.s, p.c].filter(Boolean).join(', '), 'כשרות: ' + (p.h || HC[p.hc])].join('\n');
+const nPl = n => n === 1 ? 'מקום אחד' : n + ' מקומות';
+const byU = u => PLACES.find(p => p.u === u);
+const favs = () => LS.get('kl3_fav', []), isFav = p => favs().includes(p.u);
+function toggleFav(p) { const f = favs(); LS.set('kl3_fav', f.includes(p.u) ? f.filter(x => x !== p.u) : [p.u, ...f].slice(0, 50)); }
+function addRecent(p) { const r = LS.get('kl3_rec', []).filter(x => x !== p.u); LS.set('kl3_rec', [p.u, ...r].slice(0, 8)); }
+const starSVG = on => `<svg width="22" height="22" viewBox="0 0 24 24" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>`;
+function personalHTML(now) {
+  let h = '';
+  const f = favs().map(byU).filter(Boolean);
+  if (f.length) h += '<div class="sec-h">הרשימה שלי</div>' + f.slice(0, 5).map(p => itemHTML({ p, st: status(p, now), d: distOf(p) })).join('');
+  const r = LS.get('kl3_rec', []).map(byU).filter(p => p && !f.includes(p)).slice(0, 6);
+  if (r.length) h += '<div class="sec-h">נצפו לאחרונה</div><div class="recent">' + r.map(p => `<button type="button" data-rec="${esc(p.u)}">${esc(p.n)}</button>`).join('') + '</div>';
+  return h ? h + '<div class="sec-h">כל המקומות</div>' : '';
+}
+// install: suggest from the second day of use; never again once declined
+const visits = (() => { const v = LS.get('kl3_v', { n: 0, d: '' }), d = new Date().toDateString(); if (v.d !== d) { v.n++; v.d = d; LS.set('kl3_v', v); } return v.n; })();
+const showInstallCard = () => !STANDALONE && visits >= 2 && !LS.get('kl3_instx', 0) && (INST || IOS);
+async function doInstall() { if (INST) { INST.prompt(); try { await INST.userChoice; } catch {} INST = null; render(); } else toast('בספארי: כפתור השיתוף ואז "הוספה למסך הבית"'); }
+async function sharePlace(p, gmu) {
+  const url = location.origin + '/?p=' + encodeURIComponent(p.u);
+  const text = [p.n, [p.s, p.c].filter(Boolean).join(', '), 'כשרות: ' + (p.h || HC[p.hc]), 'ניווט בגוגל מפות: ' + gmu].join('\n');
   try { if (navigator.share) { await navigator.share({ title: p.n, text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(text + '\n' + url); toast('הפרטים הועתקו, אפשר להדביק בוואטסאפ'); } catch { toast('לא הצלחנו לשתף מהמכשיר הזה'); }
 }
 
 // ---------- filtering ----------
-const norm = s => (s||'').toLowerCase().replace(/[״"׳'’\-–]/g,'').replace(/\s+/g,' ').trim();
+const norm = normText; // src/logic.js
 // shown exactly as in the source list, including qualifiers in parentheses such as 'only the parve'
 const shortH = p => p.h || HC[p.hc];
 PLACES.forEach(p => p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')));
@@ -307,20 +342,24 @@ function results() {
   const terms = norm(S.q).split(' ').filter(Boolean), now = T(), out = [];
   for (const p of PLACES) {
     if (S.kind && !p.k.startsWith(S.kind)) continue;
-    if (S.city && p.c !== S.city) continue;
+    if (S.city && p.c !== S.city) { const c = cityLL(S.city), ll = LLof(p); if (!c || !ll || km(c, ll) > NEAR_KM) continue; }
+    if (S.fri && !friRanges(p).length && p.f !== 'אוכל לשבת' && p.k !== 'אוכל לשבת') continue;
     if (S.hc.length && !S.hc.includes(p.hc)) continue;
     if (S.t.length && !S.t.some(t => p.t.includes(t))) continue;
     if (S.food && p.f !== S.food) continue;
     if (terms.length && !terms.every(t => p.hay.includes(t))) continue;
-    const st = status(p, now);
+    let st = status(p, now);
+    if (S.fri) { if (st.s === 'x') continue; const fr = friRanges(p); st = fr.length ? { s:'y', t:'בשישי ' + fr.map(([o, c]) => c - o >= 1440 ? 'פתוח 24 שעות' : hhmm(o) + '–' + hhmm(c % 1440)).join(', '), r:0, close: Math.max(...fr.map(x => x[1])) } : { s:'u', t:'אוכל לשבת · ' + NOINFO, r:2, close:-1 }; }
     if (S.open && (st.s === 'n' || st.s === 'x')) continue;
     out.push({ p, st, d: distOf(p) });
   }
   const byD = (a,b) => (a.d ?? 1e9) - (b.d ?? 1e9) || a.p.n.localeCompare(b.p.n,'he');
   if (S.sort === 'name') out.sort((a,b) => a.p.n.localeCompare(b.p.n,'he'));
+  else if (S.fri) out.sort((a,b) => b.st.close - a.st.close || byD(a,b));
   else if (S.open) out.sort((a,b) => a.st.r - b.st.r || byD(a,b));
   else out.sort(byD);
-  return out;
+  // places Google marks as closed stay in the list, at the end
+  return out.filter(r => r.st.s !== 'x').concat(out.filter(r => r.st.s === 'x'));
 }
 
 // ---------- list render ----------
@@ -336,7 +375,8 @@ function itemHTML({p, st, d}) {
   </button>`;
 }
 function listHTML(slice) {
-  if (!ME || S.sort === 'name' || S.city) return slice.map(itemHTML).join('');
+  if (S.city && !ME && S.sort !== 'name' && !S.fri) { const a = slice.filter(r => r.p.c === S.city), b = slice.filter(r => r.p.c !== S.city); return (a.length ? `<div class="sec-h">ב${esc(S.city)}</div>` + a.map(itemHTML).join('') : '') + (b.length ? '<div class="sec-h">בסביבה</div>' + b.map(itemHTML).join('') : ''); }
+  if (!ME || S.sort === 'name' || S.fri) return slice.map(itemHTML).join('');
   const bands = [['במרחק הליכה', r => exact(r.p) && r.d <= 1.5], ['עד 10 ק״מ', r => r.d != null && r.d <= 10], ['רחוק יותר', () => true]];
   const used = new Set(); let h = '';
   for (const [t, f] of bands) { const part = slice.filter(r => !used.has(r.p.id) && f(r)); if (!part.length) continue; part.forEach(r => used.add(r.p.id)); h += `<div class="sec-h">${t}</div>` + part.map(itemHTML).join(''); }
@@ -350,6 +390,7 @@ function render() {
   for (const p of PLACES) if (p.k === 'מסעדה' && /[ys]/.test(status(p, now).s)) nOpen++;
   const wl = whenLabel();
   $('cOpen').classList.toggle('on', S.open); $('cOpen').setAttribute('aria-pressed', S.open);
+  { const dw = IL().getDay(); $('cFri').hidden = !(S.fri || dw === 4 || dw === 5); $('cFri').classList.toggle('on', !!S.fri); $('cFri').setAttribute('aria-pressed', !!S.fri); }
   $('cOpenT').textContent = (S.when ? 'פתוח · ' + wl : 'פתוח עכשיו') + (nOpen ? ` · ${nOpen}` : '');
   $('cWhen').classList.toggle('on', !!S.when); $('cWhenT').textContent = S.when ? wl : 'מתי?';
   document.querySelectorAll('.chip[data-t]').forEach(b => { const on = S.t.includes(b.dataset.t); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
@@ -357,18 +398,23 @@ function render() {
   const nf = S.hc.length + (S.kind !== 'מסעדה') + !!S.city + (S.sort !== 'dist'); $('fN').textContent = nf; $('fN').classList.toggle('on', nf > 0);
   if (sel != null) { detail(PLACES[sel], true); paint(); return; }
   // header
-  $('sTitle').textContent = ME ? (ME.src === 'gps' ? 'קרוב אליך' : 'ליד ' + ME.label) : (S.city || 'מקומות כשרים');
-  $('sSub').textContent = rows.length ? rows.length + ' מקומות' : '';
+  $('sTitle').textContent = S.fri ? 'פתוח בשישי' : ME ? (ME.src === 'gps' ? 'קרוב אליך' : 'ליד ' + ME.label) : (S.city ? S.city + ' והסביבה' : 'מקומות כשרים');
+  $('sSub').textContent = rows.length ? nPl(rows.length) : '';
   let top = '';
   if (!ME && !S.city) top = `<div class="cta"><p><b>מה קרוב אליך?</b>נציג קודם את המקומות הכי קרובים.</p><div style="display:flex;flex-direction:column;gap:6px"><button class="btn pri" id="ctaGps">איתור מיקום</button><button class="btn ghost" id="ctaCity">בחירת ישוב</button></div></div>`;
   const fb = fridayBanner(now); if (fb) top += fb;
+  if (S.fri) top += `<div class="note">מקומות שפתוחים ביום שישי לפי השעות שפורסמו, מהנסגר הכי מאוחר. בסוף: מקומות לאוכל לשבת שאין עליהם מידע על שעות.</div>`;
+  if (showInstallCard()) top += `<div class="instc"><p><b>להוסיף למסך הבית?</b><br>נפתח מהר, גם כשהקליטה חלשה.</p><button class="btn pri" id="instY">הוספה</button><button class="btn ghost" id="instN" aria-label="לא עכשיו">לא</button></div>`;
+  if (!S.q && !S.fri) top += personalHTML(now);
   if (S.open) top += `<div class="note">מוצגים מקומות ש${S.when ? 'פתוחים בזמן שבחרתם (' + wl + ')' : 'פתוחים עכשיו'} לפי שעות הפעילות ברשת. בסוף הרשימה גם מקומות שאין עליהם מידע על שעות הפעילות.</div>`;
   const slice = rows.slice(0, shown);
   $('sbody').innerHTML = top + (slice.length ? listHTML(slice) : `<div class="empty"><b>לא נמצאו מקומות</b>נסו להסיר חלק מהסינונים.<br><br><button class="btn ghost" id="clr">ניקוי סינון</button></div>`)
-    + (rows.length > shown ? `<button class="more" id="more">עוד ${Math.min(40, rows.length - shown)} מקומות</button>` : '')
+    + (rows.length > shown ? `<button class="more" id="more">עוד ${nPl(Math.min(40, rows.length - shown))}</button>` : '')
     + ((INST || (IOS && !STANDALONE)) ? '<button class="more" id="inst">הוספה למסך הבית</button>' : '')
     + `<div class="foot">המאגר עודכן לאחרונה ב־${esc(fmtDate(DATA_UPDATED))}. המקומות והכשרויות מתוך מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה. יש לבדוק את תעודת הכשרות במקום. שעות, טלפונים ומיקומים: Google Maps ו-OpenStreetMap. כדאי לוודא שעות לפני שיוצאים. עדכונים: <a href="mailto:chabadfood770@gmail.com">chabadfood770@gmail.com</a></div>`;
   if ($('ctaGps')) $('ctaGps').onclick = gps;
+  if ($('instY')) $('instY').onclick = doInstall;
+  if ($('instN')) $('instN').onclick = () => { LS.set('kl3_instx', 1); render(); };
   if ($('ctaCity')) $('ctaCity').onclick = cityDlg;
   if ($('clr')) $('clr').onclick = clearAll;
   if ($('more')) $('more').onclick = () => { shown += 40; render(); };
@@ -378,6 +424,7 @@ function render() {
 // ---------- detail ----------
 function detail(p, keepScroll) {
   sel = p.id;
+  addRecent(p);
   const st = status(p), d = distOf(p), g = p.g || {}, now = T();
   const phone = g.phone || p.p;
   const ll = LLof(p);
@@ -390,7 +437,7 @@ function detail(p, keepScroll) {
   $('sTitle').textContent = ''; $('sSub').textContent = '';
   $('sbody').innerHTML = `<div class="det">
     <button class="back" id="back">${IC.back}חזרה לרשימה</button>
-    <h3>${esc(p.n)}</h3>
+    <div class="hd"><h3>${esc(p.n)}</h3><button class="fav" id="fav" aria-pressed="${isFav(p)}" aria-label="שמירה ברשימה שלי">${starSVG(isFav(p))}</button></div>
     <div class="addr">${esc([p.s, p.c].filter(Boolean).join(', '))}</div>
     <div class="row">${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}${d != null ? `<span>${esc(distTxt(p, d))}</span>` : ''}<span style="color:var(--sub)">${esc(p.f)}${p.t.length ? ', ' + p.t.join('/') : ''}</span></div>
     <div class="acts">
@@ -406,6 +453,7 @@ function detail(p, keepScroll) {
   </div>`;
   $('back').onclick = () => { sel = null; render(); };
   $('share').onclick = () => sharePlace(p, gmu);
+  $('fav').onclick = () => { toggleFav(p); const on = isFav(p); $('fav').setAttribute('aria-pressed', on); $('fav').innerHTML = starSVG(on); toast(on ? 'נשמר ברשימה שלי' : 'הוסר מהרשימה שלי'); };
   if (!keepScroll) { $('sbody').scrollTop = 0; snap('half'); if (ll) panTo(ll); }
   paint();
 }
@@ -449,6 +497,7 @@ async function initMap() {
   map.touchZoomRotate.disableRotation();
   { const a = document.createElement('div'); a.className = 'attr'; a.innerHTML = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'; $('map').appendChild(a); }
   map.on('load', () => {
+    if (sel != null && PLACES[sel] && LLof(PLACES[sel])) setTimeout(() => panTo(LLof(PLACES[sel])), 50);
     loaded = true;
     for (const ly of map.getStyle().layers) if (ly.type === 'symbol' && map.getLayoutProperty(ly.id, 'text-field') != null)
       map.setLayoutProperty(ly.id, 'text-field', ['coalesce', ['get', 'name:he'], ['get', 'name']]);
@@ -468,7 +517,8 @@ function paint() {
   if (meMk) { meMk.remove(); meMk = null; }
   if (ME) meMk = new maplibregl.Marker({ element: mkEl('<div class="me"></div>') }).setLngLat([ME.lng, ME.lat]).addTo(map);
   const z = map.getZoom(), b = map.getBounds();
-  const list = sel != null && !rows.some(r => r.p.id === sel) ? rows.concat([{ p: PLACES[sel], st: status(PLACES[sel]) }]) : rows;
+  const base = rows.filter(r => r.st.s !== 'x' || r.p.id === sel);
+  const list = sel != null && !base.some(r => r.p.id === sel) ? base.concat([{ p: PLACES[sel], st: status(PLACES[sel]) }]) : base;
   if (z < 11.5) {
     const cnt = {}; list.forEach(r => cnt[r.p.c] = (cnt[r.p.c] || 0) + 1);
     for (const c in cnt) { const ll = cityLL(c); if (!ll) continue;
@@ -500,7 +550,7 @@ function drawSvg() {
   const svg = $('svgmap');
   if (!svgVB) { const c = ME ? PX(ME.lat, ME.lng) : PX(32.2, 35.0); const w = 150; svgVB = [c[0]-w/2, c[1]-w*1.1, w, w*2]; }
   svg.setAttribute('viewBox', svgVB.join(' ')); svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-  const sc = svgVB[2]/300, cnt = {}; rows.forEach(r => cnt[r.p.c] = (cnt[r.p.c]||0) + 1);
+  const sc = svgVB[2]/300, cnt = {}; rows.forEach(r => { if (r.st.s !== 'x') cnt[r.p.c] = (cnt[r.p.c]||0) + 1; });
   let g = `<rect x="-999" y="-999" width="3000" height="3000" fill="#e4ebf1"/><polygon points="${OUT.map(([a,b]) => PX(a,b).map(v=>v.toFixed(1)).join(',')).join(' ')}" fill="#f7f7f5" stroke="#d3d9e0" stroke-width="${sc}"/>`;
   for (const c in cnt) { if (!CITY[c]) continue; const [x,y] = PX(...CITY[c]); const r = (7 + Math.sqrt(cnt[c])*1.6)*sc;
     g += `<g data-c="${esc(c)}" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="${r}" fill="#1d3a6e" stroke="#fff" stroke-width="${2*sc}"/><text x="${x}" y="${y+3.6*sc}" font-size="${10*sc}" fill="#fff" text-anchor="middle" font-weight="700" font-family="Assistant" pointer-events="none">${cnt[c]}</text></g>`; }
@@ -539,7 +589,7 @@ function filters() {
   };
   $('fCity').onchange = e => { S.city = e.target.value; sel = null; shown = 40; render(); filters(); if (map && S.city && cityLL(S.city)) ease({ center:[cityLL(S.city).lng, cityLL(S.city).lat], zoom:14 }); };
 }
-function clearAll() { Object.assign(S, DEF); S.q = ''; S.when = null; $('q').value = ''; sel = null; shown = 40; render(); }
+function clearAll() { Object.assign(S, DEF); S.q = ''; S.when = null; S.fri = false; $('q').value = ''; sel = null; shown = 40; render(); }
 
 // ---------- planning: "when?" ----------
 const dayName = (d, base = IL()) => { const a = new Date(base); a.setHours(0,0,0,0); const b = new Date(d); b.setHours(0,0,0,0); const k = Math.round((b - a) / 864e5); return k === 0 ? 'היום' : k === 1 ? 'מחר' : (d.getDay() === 5 ? 'שישי' : 'יום ' + DAYS[d.getDay()]); };
@@ -594,20 +644,22 @@ function gps() {
 // ---------- misc ----------
 let tt; function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2300); }
 let qt; $('q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { S.q = e.target.value; sel = null; shown = 40; render(); if (S.q && snapName === 'peek') snap('half'); }, 140); });
-$('cOpen').onclick = () => { S.open = !S.open; sel = null; shown = 40; render(); };
+$('cOpen').onclick = () => { S.open = !S.open; if (S.open) S.fri = false; sel = null; shown = 40; render(); };
+$('cFri').onclick = () => { S.fri = !S.fri; if (S.fri) { S.open = false; S.when = null; } sel = null; shown = 40; render(); };
 document.querySelectorAll('.chip[data-t]').forEach(b => b.onclick = () => { const v = b.dataset.t; S.t = S.t.includes(v) ? S.t.filter(x=>x!==v) : [...S.t, v]; sel = null; shown = 40; render(); });
 document.querySelectorAll('.chip[data-f]').forEach(b => b.onclick = () => { S.food = S.food === b.dataset.f ? '' : b.dataset.f; S.kind = 'מסעדה'; sel = null; shown = 40; render(); });
 $('fBtn').onclick = filters;
 $('cWhen').onclick = whenDlg;
 $('meBtn').onclick = () => ME && map ? ease({ center:[ME.lng, ME.lat], zoom:15 }) : gps();
-$('sbody').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) detail(PLACES[+it.dataset.id]); });
+$('sbody').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) return detail(PLACES[+it.dataset.id]); const rc = e.target.closest('[data-rec]'); if (rc) { const p = byU(rc.dataset.rec); if (p) detail(p); } });
 addEventListener('resize', () => { snap(snapName); map && map.resize(); });
 setInterval(() => document.visibilityState === 'visible' && sel == null && render(), 60000);
 
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); INST = e; render(); });
 addEventListener('appinstalled', () => { INST = null; render(); toast('נוסף למסך הבית'); });
 $('sbody').addEventListener('click', async e => { if (!e.target.closest('#inst')) return; if (INST) { INST.prompt(); try { await INST.userChoice; } catch {} INST = null; render(); } else toast('בספארי: כפתור השיתוף ואז "הוספה למסך הבית"'); });
-addEventListener('offline', () => toast('אין חיבור. הרשימה עובדת כרגיל, במפה יוצגו רק אזורים שכבר נצפו.'));
+function netBar() { const off = navigator.onLine === false; $('offl').hidden = !off; if (off) $('offl').textContent = 'אין חיבור. מוצג המידע השמור מ־' + fmtDate(DATA_UPDATED) + '. במפה רק אזורים שכבר נצפו.'; }
+addEventListener('offline', netBar); addEventListener('online', netBar); netBar();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
 
 // ---------- live data from GitHub: a data change needs no new upload to Netlify ----------
@@ -616,17 +668,23 @@ const RAW = 'https://raw.githubusercontent.com/zalmanhaviv/kosher-anash/main/dat
 const okPlace = p => p && typeof p.n === 'string' && p.n && typeof p.h === 'string' && p.h && HC[p.hc] && Array.isArray(p.t) && typeof p.c === 'string';
 Promise.all(['places.json', 'meta.json'].map(f => fetch(RAW + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)))
   .then(([a, meta]) => {
-    if (!Array.isArray(a) || a.length < 100 || !a.every(okPlace) || !meta || !meta.updated || meta.updated < DATA_UPDATED) return;
-    if (meta.updated === DATA_UPDATED && a.length === PLACES.length) return;
+    // rev goes up with every data change, so a same-day update is picked up too
+    if (!Array.isArray(a) || a.length < 100 || !a.every(okPlace) || !meta || !meta.updated || (meta.rev | 0) <= DATA_REV) return;
     const cur = sel != null ? PLACES[sel] : null;
     PLACES.length = 0;
     a.forEach((p, i) => { p.id = i; p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')); PLACES.push(p); });
-    DATA_UPDATED = meta.updated;
+    DATA_UPDATED = meta.updated; DATA_REV = meta.rev | 0;
     if (cur) { const m = PLACES.find(p => p.n === cur.n && p.s === cur.s && p.c === cur.c && p.k === cur.k); sel = m ? m.id : null; }
     shown = 40; render();
   }).catch(() => {});
 
+// links: ?p=<id> opens a place (shared links); ?open=1 and ?near=1 come from the home-screen shortcuts
+const QS = new URLSearchParams(location.search);
+if (QS.get('open') === '1') S.open = true;
 render(); snap('peek'); initMap();
+{ const p = QS.get('p') && byU(QS.get('p')); if (p) { detail(p); snap('half'); const ll = LLof(p); if (ll) setTimeout(() => panTo(ll), 600); } }
+if (QS.get('near') === '1') gps();
+if (QS.toString()) history.replaceState(null, '', location.pathname);
 if (navigator.permissions) navigator.permissions.query({ name:'geolocation' }).then(r => { if (r.state === 'granted') gps(); }).catch(() => {});
 })();
 </script>

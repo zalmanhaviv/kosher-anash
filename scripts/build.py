@@ -16,7 +16,8 @@ def main():
     t = t.replace('/*LOGIC*/', (ROOT / 'src/logic.js').read_text(encoding='utf-8'))
     html = t.replace('/*DATA*/', json.dumps(places, ensure_ascii=False, separators=(',', ':'))) \
             .replace('/*CITIES*/', json.dumps(cities, ensure_ascii=False)) \
-            .replace('/*UPDATED*/', json.dumps(json.load(open(ROOT / 'data/meta.json'))['updated']))
+            .replace('/*UPDATED*/', json.dumps(json.load(open(ROOT / 'data/meta.json'))['updated'])) \
+            .replace('/*REV*/', str(int(json.load(open(ROOT / 'data/meta.json')).get('rev', 1))))
     dist = ROOT / 'dist'
     if dist.exists(): shutil.rmtree(dist)
     shutil.copytree(ROOT / 'public', dist)
