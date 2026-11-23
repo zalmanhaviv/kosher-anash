@@ -13,8 +13,10 @@ def main():
     if errors:
         print('\n'.join(errors)); sys.exit('build stopped: data errors')
     t = (ROOT / 'src/template.html').read_text(encoding='utf-8')
+    t = t.replace('/*LOGIC*/', (ROOT / 'src/logic.js').read_text(encoding='utf-8'))
     html = t.replace('/*DATA*/', json.dumps(places, ensure_ascii=False, separators=(',', ':'))) \
-            .replace('/*CITIES*/', json.dumps(cities, ensure_ascii=False))
+            .replace('/*CITIES*/', json.dumps(cities, ensure_ascii=False)) \
+            .replace('/*UPDATED*/', json.dumps(json.load(open(ROOT / 'data/meta.json'))['updated']))
     dist = ROOT / 'dist'
     if dist.exists(): shutil.rmtree(dist)
     shutil.copytree(ROOT / 'public', dist)

@@ -165,6 +165,7 @@ button{cursor:pointer}
 }
 @media (prefers-reduced-motion:reduce){.sheet,.dlg,.scrim,.toast{transition:none}}
 
+@media (max-width:330px){.brandmark,.sbar .sep{display:none}.cta{flex-direction:column;align-items:stretch}.cta .btn{white-space:normal;height:auto;min-height:44px}.acts{grid-template-columns:repeat(2,1fr)}}
 .report-slot{display:none} /* reserved: "report a mistake" button, deferred by decision */
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.chip,.item,.opt,.btn{transition:none}}
 </style>
@@ -208,6 +209,7 @@ button{cursor:pointer}
 <script>
 const PLACES = /*DATA*/;
 const CITY = /*CITIES*/;
+let DATA_UPDATED = /*UPDATED*/;
 </script>
 <script>
 (() => {
@@ -218,7 +220,7 @@ const LS = { get(k,d){ try{ const v = localStorage.getItem(k); return v ? JSON.p
 const HC = { chabad:'חב״ד', eda:'העדה החרדית', landa:'לנדא', products:'מוצרי העדה/לנדא' };
 const HCOL = { chabad:'var(--chabad)', eda:'var(--eda)', landa:'var(--landa)', products:'var(--products)' }; // from the design tokens
 const HL = { chabad:'ח', eda:'ע', landa:'ל', products:'מ' };
-const DAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+/*LOGIC*/
 const KINDS = [['מסעדה','מסעדות ומאפיות'],['אוכל לשבת','אוכל מוכן לשבת'],['קייטרינג','קייטרינג'],['אולם אירועים','אולמות אירועים'],['מלון','בתי מלון'],['בית הארחה','בתי הארחה']];
 PLACES.forEach((p, i) => { p.id = i; });
 
@@ -259,14 +261,11 @@ let ME = LS.get('kl3_me', null);
 if (ME && ME.src === 'gps') { ME = null; LS.set('kl3_me', null); } // GPS position is never kept on the device
 let sel = null, shown = 40, rows = [];
 S.when = null; // planned time (Date) or null = now
-const IL_F = (() => { try { return new Intl.DateTimeFormat('en-US', { timeZone:'Asia/Jerusalem', year:'numeric', month:'numeric', day:'numeric', hour:'numeric', minute:'numeric', second:'numeric', hourCycle:'h23' }); } catch { return null; } })();
-// Israel wall-clock time as a Date, so 'open now' is right even when the phone's clock zone is not Israel
-const IL = (d = new Date()) => { if (!IL_F) return new Date(d); const p = {}; for (const x of IL_F.formatToParts(d)) p[x.type] = x.value; return new Date(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second); };
 const T = () => S.when ? new Date(S.when) : IL();
+const status = (p, now = T()) => statusAt(p, now, !!S.when);
 let INST = null; const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; const IOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
 // ---------- geo ----------
-const rad = x => x * Math.PI / 180;
 const km = (a, b) => { const dLa = rad(b.lat-a.lat), dLo = rad(b.lng-a.lng); const x = Math.sin(dLa/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLo/2)**2; return 12742*Math.asin(Math.sqrt(x)); };
 const cityLL = c => CITY[c] ? { lat:CITY[c][0], lng:CITY[c][1] } : null;
 const exact = p => !!(p.g && p.g.loc);
@@ -281,23 +280,11 @@ function distTxt(p, d) {
 function nearestCity(ll) { let b = null, bd = 1e9; for (const c in CITY) { const d = km(ll, cityLL(c)); if (d < bd) { bd = d; b = c; } } return b; }
 
 // ---------- open status ----------
-const hhmm = m => String(Math.floor(m/60)%24).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
-// sunset (NOAA approximation, no external service) -> candle lighting by Chabad custom: 18 min before sunset, Jerusalem 40
-function sunset(ll, day) {
-  const y = day.getFullYear(), mo = day.getMonth(), d = day.getDate();
-  const N = Math.round((Date.UTC(y, mo, d) - Date.UTC(y, 0, 1)) / 864e5) + 1;
-  const g = 2 * Math.PI / 365 * (N - 1 + (18 - 12) / 24);
-  const eq = 229.18 * (0.000075 + 0.001868*Math.cos(g) - 0.032077*Math.sin(g) - 0.014615*Math.cos(2*g) - 0.040849*Math.sin(2*g));
-  const dec = 0.006918 - 0.399912*Math.cos(g) + 0.070257*Math.sin(g) - 0.006758*Math.cos(2*g) + 0.000907*Math.sin(2*g) - 0.002697*Math.cos(3*g) + 0.00148*Math.sin(3*g);
-  const la = rad(ll.lat), ha = Math.acos(Math.cos(rad(90.833)) / (Math.cos(la)*Math.cos(dec)) - Math.tan(la)*Math.tan(dec)) * 180 / Math.PI;
-  return new Date(Date.UTC(y, mo, d) + (720 - 4*(ll.lng - ha) - eq) * 60000);
-}
-function candles(city, ll, day) { const ss = sunset(ll, day); const min = city === 'ירושלים' ? 40 : 18; const c = IL(new Date(ss.getTime() - min*60000)); return hhmm(c.getHours()*60 + c.getMinutes()); }
-const NOINFO = 'אין מידע על שעות הפעילות';
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ease = o => map && map.easeTo(RM ? Object.assign({}, o, { duration: 0 }) : o);
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch {} };
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.chip,.item,.opt,.mkw,.acts a,.acts button')) buzz(); }, true);
+const fmtDate = s => { const [y, m, d] = String(s).split('-').map(Number); return y ? `${d} ב${MONTHS[m - 1]} ${y}` : ''; };
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const STALE_MONTHS = 6;
 function srcLine(g) {
@@ -309,31 +296,6 @@ async function sharePlace(p, url) {
   const text = [p.n, [p.s, p.c].filter(Boolean).join(', '), 'כשרות: ' + (p.h || HC[p.hc])].join('\n');
   try { if (navigator.share) { await navigator.share({ title: p.n, text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(text + '\n' + url); toast('הפרטים הועתקו, אפשר להדביק בוואטסאפ'); } catch { toast('לא הצלחנו לשתף מהמכשיר הזה'); }
-}
-function status(p, now = T()) {
-  if (p.g && p.g.closed) return { s:'x', t: p.g.closed === 'סגור לצמיתות' ? 'נסגר לצמיתות (לפי גוגל)' : 'סגור זמנית (לפי גוגל)', r:4 };
-  const g = p.g, wm = now.getDay()*1440 + now.getHours()*60 + now.getMinutes(), planned = !!S.when;
-  if (g && g.periods && g.periods.length) {
-    let next = null;
-    for (const [od,oh,om,cd,ch,cm] of g.periods) {
-      const o = od*1440 + oh*60 + om; let c = cd*1440 + ch*60 + cm; if (c <= o) c += 7*1440;
-      for (const w of [wm, wm + 7*1440]) if (w >= o && w < c) {
-        const left = c - w;
-        if (left <= 60) return { s:'s', t: planned ? 'נסגר ב־' + hhmm(c % 1440) : 'נסגר בעוד ' + left + ' דק׳', r:0 };
-        return { s:'y', t:'פתוח עד ' + hhmm(c % 1440), r:0 };
-      }
-      const u = (o - wm + 7*1440) % (7*1440); if (!next || u < next.u) next = { u, o };
-    }
-    const shut = planned ? 'סגור בשעה הזו' : 'סגור עכשיו';
-    if (!next) return { s:'n', t:shut, r:3 };
-    const dd = Math.floor((wm % 1440 + next.u) / 1440), od = Math.floor(next.o / 1440) % 7;
-    const when = dd === 0 ? (planned ? '' : 'היום ') : dd === 1 ? (planned ? 'למחרת ' : 'מחר ') : 'ביום ' + DAYS[od] + ' ';
-    const opens = 'נפתח ' + when + 'ב־' + hhmm(next.o % 1440);
-    return next.u < 20*60 ? { s:'n', t:opens, r:1 } : { s:'n', t:shut + ' · ' + opens, r:3 };
-  }
-  // the source list only says 'open Thursday night'; no hours were published, so never compute open/closed from it
-  if (p.fri) return { s:'u', t:'פתוח בליל שישי (לפי המאגר), השעות לא ידועות', r:2 };
-  return { s:'u', t:NOINFO, r:2 };
 }
 
 // ---------- filtering ----------
@@ -405,7 +367,7 @@ function render() {
   $('sbody').innerHTML = top + (slice.length ? listHTML(slice) : `<div class="empty"><b>לא נמצאו מקומות</b>נסו להסיר חלק מהסינונים.<br><br><button class="btn ghost" id="clr">ניקוי סינון</button></div>`)
     + (rows.length > shown ? `<button class="more" id="more">עוד ${Math.min(40, rows.length - shown)} מקומות</button>` : '')
     + ((INST || (IOS && !STANDALONE)) ? '<button class="more" id="inst">הוספה למסך הבית</button>' : '')
-    + `<div class="foot">המקומות והכשרויות מתוך מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה. יש לבדוק את תעודת הכשרות במקום. שעות, טלפונים ומיקומים: Google Maps ו-OpenStreetMap. כדאי לוודא שעות לפני שיוצאים. עדכונים: <a href="mailto:chabadfood770@gmail.com">chabadfood770@gmail.com</a></div>`;
+    + `<div class="foot">המאגר עודכן לאחרונה ב־${esc(fmtDate(DATA_UPDATED))}. המקומות והכשרויות מתוך מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה. יש לבדוק את תעודת הכשרות במקום. שעות, טלפונים ומיקומים: Google Maps ו-OpenStreetMap. כדאי לוודא שעות לפני שיוצאים. עדכונים: <a href="mailto:chabadfood770@gmail.com">chabadfood770@gmail.com</a></div>`;
   if ($('ctaGps')) $('ctaGps').onclick = gps;
   if ($('ctaCity')) $('ctaCity').onclick = cityDlg;
   if ($('clr')) $('clr').onclick = clearAll;
@@ -647,6 +609,22 @@ addEventListener('appinstalled', () => { INST = null; render(); toast('נוסף 
 $('sbody').addEventListener('click', async e => { if (!e.target.closest('#inst')) return; if (INST) { INST.prompt(); try { await INST.userChoice; } catch {} INST = null; render(); } else toast('בספארי: כפתור השיתוף ואז "הוספה למסך הבית"'); });
 addEventListener('offline', () => toast('אין חיבור. הרשימה עובדת כרגיל, במפה יוצגו רק אזורים שכבר נצפו.'));
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+// ---------- live data from GitHub: a data change needs no new upload to Netlify ----------
+// The built-in copy shows instantly (and offline); a newer copy from the repository replaces it when it arrives.
+const RAW = 'https://raw.githubusercontent.com/zalmanhaviv/kosher-anash/main/data/';
+const okPlace = p => p && typeof p.n === 'string' && p.n && typeof p.h === 'string' && p.h && HC[p.hc] && Array.isArray(p.t) && typeof p.c === 'string';
+Promise.all(['places.json', 'meta.json'].map(f => fetch(RAW + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)))
+  .then(([a, meta]) => {
+    if (!Array.isArray(a) || a.length < 100 || !a.every(okPlace) || !meta || !meta.updated || meta.updated < DATA_UPDATED) return;
+    if (meta.updated === DATA_UPDATED && a.length === PLACES.length) return;
+    const cur = sel != null ? PLACES[sel] : null;
+    PLACES.length = 0;
+    a.forEach((p, i) => { p.id = i; p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')); PLACES.push(p); });
+    DATA_UPDATED = meta.updated;
+    if (cur) { const m = PLACES.find(p => p.n === cur.n && p.s === cur.s && p.c === cur.c && p.k === cur.k); sel = m ? m.id : null; }
+    shown = 40; render();
+  }).catch(() => {});
 
 render(); snap('peek'); initMap();
 if (navigator.permissions) navigator.permissions.query({ name:'geolocation' }).then(r => { if (r.state === 'granted') gps(); }).catch(() => {});

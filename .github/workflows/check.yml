@@ -1,0 +1,21 @@
+name: check
+# Runs on every change. Uses GitHub only: no Netlify builds or previews, so no Netlify credits.
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Data check (required fields, hours format, locations, kashrut class)
+        run: python3 scripts/validate.py
+      - name: Logic tests in three phone time zones
+        run: |
+          for tz in Asia/Jerusalem America/New_York UTC; do TZ=$tz node --test tests/*.test.mjs; done
+      - name: Build
+        run: python3 scripts/build.py
