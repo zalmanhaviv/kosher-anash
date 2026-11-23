@@ -43,3 +43,23 @@ function statusAt(p, now, planned) {
   if (p.fri) return { s:'u', t:'פתוח בליל שישי (לפי המאגר), השעות לא ידועות', r:2 };
   return { s:'u', t:NOINFO, r:2 };
 }
+// search text: forgiving of Hebrew spelling (full/defective, final letters, alef) and common English words
+const EN = { pizza:'פיצה', sushi:'סושי', burger:'המבורגר', burgers:'המבורגר', hamburger:'המבורגר', falafel:'פלאפל', shawarma:'שווארמה', shwarma:'שווארמה', shawarma2:'שווארמה', cafe:'קפה', coffee:'קפה', bakery:'מאפייה', icecream:'גלידה', gelato:'גלידה', bagel:'בייגל', bagels:'בייגל', grill:'גריל', catering:'קייטרינג', hotel:'מלון', restaurant:'מסעדה', meat:'בשרי', dairy:'חלבי', parve:'פרווה', pareve:'פרווה', chabad:'חבד', deli:'מעדנייה' };
+const FIN = { 'ך':'כ', 'ם':'מ', 'ן':'נ', 'ף':'פ', 'ץ':'צ' };
+function normText(s) {
+  s = String(s || '').toLowerCase().replace(/ice\s*cream/g, 'icecream');
+  s = s.replace(/[a-z]+/g, w => EN[w] || w);
+  s = s.replace(/[״"׳'’`\-–־.,]/g, '').replace(/[ךםןףץ]/g, c => FIN[c]);
+  s = s.replace(/ו+/g, 'ו').replace(/י+/g, 'י');
+  s = s.replace(/([א-ת])א(?=[א-ת])/g, '$1');   // medial alef: שווארמה = שוורמה
+  s = s.replace(/א(?=\s|$)/g, 'ה');            // final alef as he: פיצא = פיצה
+  return s.replace(/\s+/g, ' ').trim();
+}
+// Friday opening ranges in minutes [open, close] from published hours only
+function friRanges(p) {
+  const out = [];
+  for (const [od, oh, om, cd, ch, cm] of (p.g && p.g.periods) || []) if (od === 5) {
+    let c = (cd - od) * 1440 + ch * 60 + cm; const o = oh * 60 + om; if (c <= o) c += 1440; out.push([o, c]);
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}

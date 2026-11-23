@@ -6,7 +6,7 @@ import vm from 'node:vm';
 
 const code = readFileSync(new URL('../src/logic.js', import.meta.url), 'utf8');
 const ctx = { Intl, Date, Math, String, Number, Object };
-vm.runInNewContext(code + '\n;globalThis.L = { DAYS, IL, hhmm, sunset, candles, NOINFO, statusAt };', ctx);
+vm.runInNewContext(code + '\n;globalThis.L = { DAYS, IL, hhmm, sunset, candles, NOINFO, statusAt }; globalThis.L2 = { normText, friRanges };', ctx);
 const { IL, hhmm, candles, NOINFO, statusAt } = ctx.L;
 
 // wall-clock Date: d = 0 Sunday … 6 Saturday, using the week of 22 Nov 2026 (Sunday)
@@ -86,4 +86,20 @@ test('candle lighting: Chabad custom, Jerusalem 40 minutes, others 18', () => {
 
 test('hhmm formatting', () => {
   assert.equal(hhmm(0), '00:00'); assert.equal(hhmm(9 * 60 + 5), '09:05'); assert.equal(hhmm(1440), '00:00');
+});
+
+test('search forgives spelling and English', () => {
+  const { normText } = ctx.L2;
+  const same = (a, b) => assert.equal(normText(a), normText(b), `${a} ≠ ${b}`);
+  same('מאפיה', 'מאפייה'); same('שוורמה', 'שווארמה'); same('פיצא', 'פיצה'); same('בדץ', 'בד"ץ'); same('חבד', 'חב״ד');
+  same('pizza', 'פיצה'); same('Ice Cream', 'גלידה'); same('SUSHI', 'סושי');
+  assert.ok(normText('פיצה מילוס בני ברק').includes(normText('פיצה')));
+  assert.equal(normText('770'), '770');
+});
+
+test('Friday ranges come only from published Friday hours', () => {
+  const { friRanges } = ctx.L2;
+  assert.deepEqual(friRanges({}).length, 0);
+  const r = friRanges({ g: { periods: [[4, 9, 0, 4, 22, 0], [5, 8, 30, 5, 14, 0]] } });
+  assert.deepEqual(Array.from(r, x => [...x]), [[510, 840]]);
 });
