@@ -499,8 +499,9 @@ async function initMap() {
   map.on('load', () => {
     if (sel != null && PLACES[sel] && LLof(PLACES[sel])) setTimeout(() => panTo(LLof(PLACES[sel])), 50);
     loaded = true;
-    for (const ly of map.getStyle().layers) if (ly.type === 'symbol' && map.getLayoutProperty(ly.id, 'text-field') != null)
-      map.setLayoutProperty(ly.id, 'text-field', ['coalesce', ['get', 'name:he'], ['get', 'name']]);
+    // Hebrew place names; only layers that show a name (road-number signs show 'ref' and must keep it)
+    for (const ly of map.getStyle().layers) { if (ly.type !== 'symbol') continue; const tf = map.getLayoutProperty(ly.id, 'text-field'); if (tf != null && /name/.test(JSON.stringify(tf)) && !/"ref"/.test(JSON.stringify(tf)))
+      map.setLayoutProperty(ly.id, 'text-field', ['coalesce', ['get', 'name:he'], ['get', 'name']]); }
     if (mapMode === 'svg') { $('svgmap').setAttribute('hidden', ''); $('map').hidden = false; map.resize(); }
     mapMode = 'gl'; paint();
   });
