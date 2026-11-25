@@ -1,0 +1,76 @@
+/* ---------- style C: warm and soft (design language of Airbnb) ---------- */
+:root{
+  --font:"Assistant","Arial Hebrew",Arial,"Liberation Sans",system-ui,sans-serif;--font-h:var(--font);
+  --fs-body:16px;--fs-small:14px;--fs-name:18px;--fs-title:26px;--fs-title2:24px;--fs-card:30px;--fs-sec:20px;--fs-chip:13px;--fs-search:16px;
+  --w-title:800;--w-card:800;--w-name:700;--w-sec:800;--w-chip:600;--w-strong:700;--w-label:600;--w-label-big:700;--ls-title:-.01em;
+  --pad:24px;--sec-gap:28px;--chip-gap:22px;--chip-h:58px;--search-h:54px;--btn-h:50px;--fab:44px;--kb:40px;--kb-big:48px;
+  --r-sheet:24px;--r-card:16px;--r-chip:0;--r-search:28px;--r-btn:12px;--r-fab:50%;--r-kb:50%;--r-check:6px;--r-toast:12px;
+  --bg:#FFFFFF;--surface:#FFFFFF;--surface2:#F7F6F4;--ink:#222222;--sub:#6A6A6A;--line:#EBEBEB;--line-strong:#B0B0B0;--link:#222222;
+  --brand:#155E9E;--brand-ink:#FFFFFF;--brand-tint:#EAF2F9;
+  --sheet-bg:#FFFFFF;--search-bg:#FFFFFF;--search-border:1px solid #DDDDDD;--sh-search:0 3px 12px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --chip-bg:transparent;--chip-ink:#6A6A6A;--chip-border:0;--chip-on-bg:transparent;--chip-on-ink:#222222;--chip-on-border:transparent;--sh-chip:none;
+  --btn2-bg:#FFFFFF;--btn2-ink:#222222;--btn2-border:1px solid #B0B0B0;--float-bg:#FFFFFF;--float-ink:#222222;--float-border:0;
+  --sh-sheet:0 -6px 24px rgba(0,0,0,.10);--sh-float:0 2px 10px rgba(0,0,0,.16);--sh-panel:none;--panel-border:1px solid #EBEBEB;--panel-div:0;
+  --grabber:#DDDDDD;--sec-ink:#222222;--toast-bg:#222222;--toast-ink:#FFFFFF;
+  --m-land:#F7F5F1;--m-desert:#F3EDE2;--m-green:#DDEBD5;--m-sea:#BFDDF1;--m-sea-line:#A9D0EA;--m-coast:#AED1EA;--m-urban:#EEEAE4;--m-street:#FFFFFF;
+  --m-mw:#FBE3B4;--m-mw-case:#E8CB92;--m-tr:#FFFFFF;--m-tr-case:#E2DDD5;--m-border:#ABA394;--m-label:#555555;--m-halo:#F7F5F1;--m-water-label:#244E70;
+  --pill-bg:#FFFFFF;--pill-ink:#222222;--pill-sel-bg:#222222;--pill-sel-ink:#FFFFFF;
+}
+:root[data-theme=dark]{
+  --bg:#121212;--surface:#1E1E1E;--surface2:#262626;--ink:#F2F2F2;--sub:#ABABAB;--line:#333333;--line-strong:#6A6A6A;--link:#F2F2F2;
+  --brand:#5DA8E8;--brand-ink:#08182A;--brand-tint:#17293A;
+  --sheet-bg:#121212;--search-bg:#1E1E1E;--search-border:1px solid #3A3A3A;--sh-search:0 3px 12px rgba(0,0,0,.5);
+  --chip-ink:#ABABAB;--chip-on-ink:#F2F2F2;
+  --btn2-bg:#1E1E1E;--btn2-ink:#F2F2F2;--btn2-border:1px solid #6A6A6A;--float-bg:#1E1E1E;--float-ink:#F2F2F2;
+  --sh-sheet:0 -6px 24px rgba(0,0,0,.6);--sh-float:0 2px 10px rgba(0,0,0,.6);--panel-border:1px solid #333333;
+  --grabber:#444444;--sec-ink:#F2F2F2;--toast-bg:#F2F2F2;--toast-ink:#121212;
+  --m-land:#1D1C1A;--m-desert:#23211D;--m-green:#1E2A20;--m-sea:#122A3D;--m-sea-line:#1B3D58;--m-coast:#1B3D58;--m-urban:#262522;--m-street:#302F2C;
+  --m-mw:#5A4C30;--m-mw-case:#151412;--m-tr:#383633;--m-tr-case:#151412;--m-border:#6B665C;--m-label:#D6D3CE;--m-halo:#171615;--m-water-label:#7FA9CB;
+  --pill-bg:#2A2A2A;--pill-ink:#F2F2F2;--pill-sel-bg:#F2F2F2;--pill-sel-ink:#121212;
+}
+/* header: white bar with search pill and an icon-over-label category row */
+.ph .top{top:0;padding-top:50px;background:var(--sheet-bg);box-shadow:0 1px 0 var(--line),0 6px 16px rgba(0,0,0,.05)}
+.ph .osbar{z-index:7}
+.sbar{padding:0 18px}
+.sbar .sic{color:var(--ink)}
+.chips{padding-top:12px;gap:var(--chip-gap)}
+.chip{flex-direction:column;justify-content:center;gap:5px;padding:0 2px;position:relative;font-size:var(--fs-chip)}
+.chip .ic{width:24px;height:24px}
+.chip .cv{display:none}
+.chip .n{position:absolute;top:2px;inset-inline-end:-12px;background:var(--brand);color:var(--brand-ink);font-size:11px;border-radius:9px;padding:0 5px;line-height:17px;font-weight:700}
+.chip::after{content:"";position:absolute;bottom:0;left:0;right:0;height:2px;border-radius:1px;background:transparent}
+.chip[aria-pressed=true]::after{background:var(--ink)}
+.chip:hover{color:var(--ink)}
+.dk .top{border-bottom:1px solid var(--line)}
+.dk .chips{flex-wrap:nowrap;overflow-x:auto;gap:20px}
+.dk .ctl{bottom:auto;top:16px}
+.dk .fab{border-radius:12px}
+.shd{padding-top:6px}
+.townbtn{border-radius:24px;border:1px solid var(--ink);background:var(--surface);color:var(--ink)}
+.cand{border:1px solid var(--line);border-radius:var(--r-card);padding:12px 14px}
+.allc{text-decoration:underline}
+.item{padding:18px 0;border-bottom:1px solid var(--line);gap:14px}
+.item:last-of-type{border-bottom:0}
+.nm{font-size:18px}
+.l3 .sep{color:var(--line-strong)}
+.more{text-decoration:underline;text-underline-offset:3px;color:var(--ink)}
+.sec-h{font-size:22px}
+.card h3{font-size:30px}
+.acts{display:flex;gap:10px;flex-wrap:wrap}
+.acts .act{flex:1 1 40%;flex-direction:row;min-height:48px;gap:8px;font-size:15px}
+.acts .act.pri{background:var(--brand);color:var(--brand-ink);border:0}
+.kbox{background:transparent;border:1px solid var(--line);border-radius:var(--r-card);padding:18px;box-shadow:0 6px 16px rgba(0,0,0,.06)}
+.dl{border-top:1px solid var(--line);padding-top:20px;margin-top:20px}
+.btn.pri{background:var(--ink);color:var(--bg)}
+.opt{background:transparent;border-bottom:1px solid var(--line);border-radius:0}
+.opt .box{border-radius:6px}
+.opt[aria-checked=true] .box{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+/* map: status pills instead of dots */
+.pill{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px 0 4px;border-radius:14px;background:var(--pill-bg);color:var(--pill-ink);font-weight:800;font-size:13.5px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.06);font-variant-numeric:tabular-nums;transition:transform .12s}
+.pill .kb{--kb:20px;font-size:11px}
+.pill.only{padding:0 4px}
+.pill.closed{color:var(--sub);font-weight:600}
+.pill.sel{background:var(--pill-sel-bg);color:var(--pill-sel-ink);transform:scale(1.12);height:32px;font-size:14.5px;padding-inline-end:12px}
+.mk:hover .pill{transform:scale(1.06)}
+.clp{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:15px;background:var(--pill-bg);color:var(--pill-ink);font-weight:800;font-size:14px;box-shadow:0 1px 2px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.06);white-space:nowrap}
+.clp small{font-weight:600;color:var(--sub);font-size:12px;margin-inline-start:4px}
