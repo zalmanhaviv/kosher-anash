@@ -1,0 +1,573 @@
+{
+ "$comment": [
+  "S1-2 proposal – direction \"Neirot (candlelight)\". Paint overrides for the OpenFreeMap liberty style (https://tiles.openfreemap.org/styles/liberty), OpenMapTiles schema.",
+  "Layers are matched by source-layer (+ geometry type, + the class values in the layer filter, + casing = layer id contains \"casing\"), not by hard-coded liberty ids, so the override survives liberty id renames. \"id\" is used only for \"background\".",
+  "A small build step (to be written after the owner chooses) fetches liberty once, applies these rules, keeps name:he labels (as today), and writes public/map-style/<theme>.json into the repo; the app loads it from the site.",
+  "Glyphs stay the liberty font stack (Hebrew already renders with the rtl-text plugin). Custom fonts on the map would need self-hosted glyph PBFs – not proposed."
+ ],
+ "base": "https://tiles.openfreemap.org/styles/liberty",
+ "remove_layers": [
+  {
+   "source-layer": "poi",
+   "$why": "all POI icons/labels: shops, banks, other restaurants – only our markers should speak"
+  },
+  {
+   "source-layer": "housenumber"
+  },
+  {
+   "source-layer": "aerodrome_label"
+  },
+  {
+   "source-layer": "mountain_peak"
+  },
+  {
+   "source-layer": "transportation_name",
+   "class": [
+    "minor",
+    "service",
+    "track",
+    "path"
+   ],
+   "maxzoom": 15,
+   "$why": "minor street names only from z15"
+  },
+  {
+   "type": "fill-extrusion",
+   "$why": "3D buildings off"
+  },
+  {
+   "source-layer": "landcover",
+   "type": "fill-pattern",
+   "$why": "no texture patterns"
+  }
+ ],
+ "keep_labels": [
+  "place: city, town, village, suburb, neighbourhood, quarter",
+  "transportation_name: motorway–tertiary (all zooms), minor from z15",
+  "water_name"
+ ],
+ "light": [
+  {
+   "match": {
+    "id": "background"
+   },
+   "paint": {
+    "background-color": "#EEEDEB"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landuse",
+    "class": [
+     "residential",
+     "suburb",
+     "neighbourhood"
+    ]
+   },
+   "paint": {
+    "fill-color": "#E9E7E5",
+    "fill-opacity": 1
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landuse",
+    "class": [
+     "commercial",
+     "industrial",
+     "retail",
+     "hospital",
+     "school",
+     "cemetery",
+     "stadium",
+     "railway"
+    ]
+   },
+   "paint": {
+    "fill-color": "#E9E7E5",
+    "fill-opacity": 0.6
+   }
+  },
+  {
+   "match": {
+    "source-layer": "park"
+   },
+   "paint": {
+    "fill-color": "#DDE5D6",
+    "fill-outline-color": "#DDE5D6"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landcover",
+    "class": [
+     "wood",
+     "forest"
+    ]
+   },
+   "paint": {
+    "fill-color": "#D5DFCC",
+    "fill-opacity": 0.8
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landcover",
+    "class": [
+     "grass",
+     "farmland",
+     "scrub",
+     "wetland",
+     "sand",
+     "rock",
+     "ice"
+    ]
+   },
+   "paint": {
+    "fill-color": "#DDE5D6",
+    "fill-opacity": 0.35
+   }
+  },
+  {
+   "match": {
+    "source-layer": "water",
+    "type": "fill"
+   },
+   "paint": {
+    "fill-color": "#BFD0DA"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "waterway",
+    "type": "line"
+   },
+   "paint": {
+    "line-color": "#A9C0CD"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "building",
+    "type": "fill"
+   },
+   "paint": {
+    "fill-color": "#E2DFDC",
+    "fill-outline-color": "#E2DFDC"
+   },
+   "minzoom": 15
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "minor",
+     "service",
+     "track"
+    ],
+    "casing": true
+   },
+   "paint": {
+    "line-color": "#D8D2CF"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "minor",
+     "service",
+     "track"
+    ],
+    "casing": false
+   },
+   "paint": {
+    "line-color": "#FFFFFF"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "primary",
+     "secondary",
+     "tertiary"
+    ],
+    "casing": true
+   },
+   "paint": {
+    "line-color": "#CFC7C2"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "primary",
+     "secondary",
+     "tertiary"
+    ],
+    "casing": false
+   },
+   "paint": {
+    "line-color": "#FFFFFF"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "motorway",
+     "trunk"
+    ],
+    "casing": true
+   },
+   "paint": {
+    "line-color": "#D8C59A"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "motorway",
+     "trunk"
+    ],
+    "casing": false
+   },
+   "paint": {
+    "line-color": "#F1E3C6"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "path",
+     "pedestrian"
+    ]
+   },
+   "paint": {
+    "line-color": "#D8D2CF",
+    "line-opacity": 0.7
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "rail",
+     "transit"
+    ]
+   },
+   "paint": {
+    "line-color": "#CFC9C6"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "boundary"
+   },
+   "paint": {
+    "line-color": "#B9AFAD"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "place",
+    "type": "symbol"
+   },
+   "paint": {
+    "text-color": "#3D3335",
+    "text-halo-color": "#FFFFFF",
+    "text-halo-width": 1.6
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation_name",
+    "type": "symbol"
+   },
+   "paint": {
+    "text-color": "#6A6063",
+    "text-halo-color": "#FFFFFF",
+    "text-halo-width": 1.4
+   }
+  },
+  {
+   "match": {
+    "source-layer": [
+     "water_name"
+    ],
+    "type": "symbol"
+   },
+   "paint": {
+    "text-color": "#4F6B7A",
+    "text-halo-color": "#FFFFFF",
+    "text-halo-width": 1.2
+   }
+  }
+ ],
+ "dark": [
+  {
+   "match": {
+    "id": "background"
+   },
+   "paint": {
+    "background-color": "#1A1618"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landuse",
+    "class": [
+     "residential",
+     "suburb",
+     "neighbourhood"
+    ]
+   },
+   "paint": {
+    "fill-color": "#1E1A1C",
+    "fill-opacity": 1
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landuse",
+    "class": [
+     "commercial",
+     "industrial",
+     "retail",
+     "hospital",
+     "school",
+     "cemetery",
+     "stadium",
+     "railway"
+    ]
+   },
+   "paint": {
+    "fill-color": "#1E1A1C",
+    "fill-opacity": 0.6
+   }
+  },
+  {
+   "match": {
+    "source-layer": "park"
+   },
+   "paint": {
+    "fill-color": "#1F2A20",
+    "fill-outline-color": "#1F2A20"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landcover",
+    "class": [
+     "wood",
+     "forest"
+    ]
+   },
+   "paint": {
+    "fill-color": "#1D281E",
+    "fill-opacity": 0.8
+   }
+  },
+  {
+   "match": {
+    "source-layer": "landcover",
+    "class": [
+     "grass",
+     "farmland",
+     "scrub",
+     "wetland",
+     "sand",
+     "rock",
+     "ice"
+    ]
+   },
+   "paint": {
+    "fill-color": "#1F2A20",
+    "fill-opacity": 0.35
+   }
+  },
+  {
+   "match": {
+    "source-layer": "water",
+    "type": "fill"
+   },
+   "paint": {
+    "fill-color": "#0E1C24"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "waterway",
+    "type": "line"
+   },
+   "paint": {
+    "line-color": "#163040"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "building",
+    "type": "fill"
+   },
+   "paint": {
+    "fill-color": "#231E21",
+    "fill-outline-color": "#231E21"
+   },
+   "minzoom": 15
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "minor",
+     "service",
+     "track"
+    ],
+    "casing": true
+   },
+   "paint": {
+    "line-color": "#2C2629"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "minor",
+     "service",
+     "track"
+    ],
+    "casing": false
+   },
+   "paint": {
+    "line-color": "#2C2629"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "primary",
+     "secondary",
+     "tertiary"
+    ],
+    "casing": true
+   },
+   "paint": {
+    "line-color": "#3A3236"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "primary",
+     "secondary",
+     "tertiary"
+    ],
+    "casing": false
+   },
+   "paint": {
+    "line-color": "#3A3236"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "motorway",
+     "trunk"
+    ],
+    "casing": true
+   },
+   "paint": {
+    "line-color": "#4A3C26"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "motorway",
+     "trunk"
+    ],
+    "casing": false
+   },
+   "paint": {
+    "line-color": "#4A3C26"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "path",
+     "pedestrian"
+    ]
+   },
+   "paint": {
+    "line-color": "#2C2629",
+    "line-opacity": 0.7
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation",
+    "class": [
+     "rail",
+     "transit"
+    ]
+   },
+   "paint": {
+    "line-color": "#332C2F"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "boundary"
+   },
+   "paint": {
+    "line-color": "#4D4246"
+   }
+  },
+  {
+   "match": {
+    "source-layer": "place",
+    "type": "symbol"
+   },
+   "paint": {
+    "text-color": "#CFC4C6",
+    "text-halo-color": "#1A1618",
+    "text-halo-width": 1.6
+   }
+  },
+  {
+   "match": {
+    "source-layer": "transportation_name",
+    "type": "symbol"
+   },
+   "paint": {
+    "text-color": "#9C9093",
+    "text-halo-color": "#1A1618",
+    "text-halo-width": 1.4
+   }
+  },
+  {
+   "match": {
+    "source-layer": [
+     "water_name"
+    ],
+    "type": "symbol"
+   },
+   "paint": {
+    "text-color": "#7FA3B5",
+    "text-halo-color": "#1A1618",
+    "text-halo-width": 1.2
+   }
+  }
+ ]
+}
