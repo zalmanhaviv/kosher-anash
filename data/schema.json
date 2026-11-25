@@ -1,0 +1,146 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/zalmanhaviv/kosher-anash/data/schema.json",
+ "title": "כשר לאנ״ש – data files",
+ "description": "One file, three entry points: #/$defs/placesFile (data/places.json), #/$defs/citiesFile (data/cities.json), #/$defs/metaFile (data/meta.json). Checked by scripts/validate.py with a small built-in validator (stdlib only) that supports exactly the keywords used here: $ref, anyOf, type, enum, const, pattern, minLength, minimum, maximum, required, properties, additionalProperties, propertyNames, items, prefixItems, minItems, maxItems, uniqueItems, plus the annotations title/description/$comment/x-codes. Any other keyword makes validate.py fail, so this file never claims a check that is not run.",
+ "$defs": {
+  "text": {
+   "type": "string",
+   "pattern": "^[^<>`]*$",
+   "$comment": "No markup characters: the app renders some fields into HTML."
+  },
+  "phone": {
+   "type": "string",
+   "pattern": "^\\+?[0-9][0-9 -]{6,18}[0-9]$",
+   "description": "Israeli phone as published, e.g. 04-840-4383, 1-700-501-222, +972 54 …"
+  },
+  "placesFile": {
+   "type": "array",
+   "minItems": 1,
+   "items": { "$ref": "#/$defs/place" }
+  },
+  "place": {
+   "type": "object",
+   "description": "One place from 'מאגר מסעדות לאנ״ש חב״ד' (ניסן ה׳תשפ״ה). Fields n…fri come from the booklet; g holds data collected later (Google Maps by hand, or OSM).",
+   "required": ["u", "n", "s", "c", "r", "k", "t", "tt", "h", "hc", "p", "f", "fri"],
+   "additionalProperties": false,
+   "properties": {
+    "u": { "type": "string", "pattern": "^[0-9a-f]{7,8}$", "description": "Permanent id, used in shared links (?p=) and favourites. Never change or reuse." },
+    "n": { "$ref": "#/$defs/text", "minLength": 1, "description": "Name as in the booklet (may include '(ליל שישי)')." },
+    "s": { "$ref": "#/$defs/text", "description": "Street and number as in the booklet; empty for catering / Shabbat food without an address." },
+    "c": { "$ref": "#/$defs/text", "minLength": 1, "description": "Town; must be a key of cities.json (checked in validate.py)." },
+    "r": { "enum": ["", "מרכז", "ירושלים", "צפון", "דרום"], "description": "Region from the booklet. Not used by the app." },
+    "k": {
+     "enum": ["מסעדה", "קייטרינג בשרי", "קייטרינג חלבי", "אוכל לשבת", "אולם אירועים", "אולם אירועים (תעודה יומית)", "מלון", "בית הארחה לשבת"],
+     "description": "Kind (booklet section). The app filters with k.startsWith(…)."
+    },
+    "t": {
+     "type": "array",
+     "uniqueItems": true,
+     "items": { "enum": ["בשרי", "חלבי", "פרווה"] },
+     "description": "Food type. Empty = not stated in the source; never guessed."
+    },
+    "tt": { "$ref": "#/$defs/text", "description": "Raw food-type text from the booklet (search only)." },
+    "h": { "$ref": "#/$defs/text", "minLength": 1, "description": "Kashrut body exactly as in the booklet, including notes in brackets. Never edited." },
+    "hc": { "enum": ["chabad", "eda", "landa", "products"], "description": "Kashrut group for the filter and colour only." },
+    "p": {
+     "anyOf": [{ "const": "" }, { "$ref": "#/$defs/phone" }],
+     "description": "Phone from the booklet ('' if none)."
+    },
+    "f": {
+     "enum": ["פיצה", "מאפייה וקונדיטוריה", "מסעדה", "פלאפל ושווארמה", "מעדנייה ואוכל מוכן", "קייטרינג בשרי", "אולם אירועים", "המבורגר וגריל", "אוכל לשבת", "גלידה", "מלון", "סושי", "קייטרינג חלבי", "אחר", "בייגל", "קפה", "בית הארחה לשבת"],
+     "description": "Food category (chips and search)."
+    },
+    "fri": { "type": "boolean", "description": "Booklet says 'open Thursday night' (ליל שישי). No hours are known from it." },
+    "g": { "$ref": "#/$defs/g" }
+   }
+  },
+  "g": {
+   "type": "object",
+   "description": "Data added after the booklet. Without src it was collected by hand from Google Maps in the browser (no API). src:'osm' = location pre-computed from OpenStreetMap Nominatim (scripts/data/geocode.py).",
+   "required": ["loc", "prec", "chk"],
+   "additionalProperties": false,
+   "properties": {
+    "loc": {
+     "type": "object",
+     "required": ["lat", "lng"],
+     "additionalProperties": false,
+     "properties": {
+      "lat": { "type": "number", "minimum": 29.3, "maximum": 33.5 },
+      "lng": { "type": "number", "minimum": 34.2, "maximum": 35.95 }
+     }
+    },
+    "prec": {
+     "enum": ["poi", "house", "street"],
+     "description": "poi = the business itself; house = the building address; street = somewhere on the street (approximate)."
+    },
+    "src": { "enum": ["osm"], "description": "Source of loc when not Google Maps. 'osm' = Nominatim/OpenStreetMap (© OpenStreetMap contributors, ODbL)." },
+    "phone": { "$ref": "#/$defs/phone" },
+    "periods": {
+     "type": "array",
+     "items": { "$ref": "#/$defs/period" },
+     "description": "Published opening periods."
+    },
+    "week": {
+     "type": "array",
+     "minItems": 7,
+     "maxItems": 7,
+     "items": { "type": "string", "pattern": "^יום (ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת): .+$" },
+     "description": "Weekly hours text as shown by Google (Monday first)."
+    },
+    "closed": { "enum": ["סגור לצמיתות", "סגור זמנית"] },
+    "chk": { "type": "string", "pattern": "^20[0-9]{2}-(0[1-9]|1[0-2])$", "description": "Month the data in g was checked, YYYY-MM." },
+    "q": {
+     "type": "array",
+     "minItems": 1,
+     "uniqueItems": true,
+     "items": { "enum": ["hours-shabbat", "hours-24h", "shared-google", "approx-loc"] },
+     "description": "Quality flags for manual review. Computed by scripts/data/flags.py (same rules as validate.py); they never change or hide data. Removing a flag after a manual check is a data decision of the owner.",
+     "x-codes": {
+      "hours-shabbat": "A published period is open some time between Friday 17:00 and Saturday 17:00 (Israel). For mehadrin places this is almost always a Google matching error.",
+      "hours-24h": "Open around the clock (00:00–24:00) on at least one day.",
+      "shared-google": "Same Google location (poi/house precision) or same phone as another place with a different town, or a different non-empty street. All members of the group are flagged.",
+      "approx-loc": "The location is only street-level (prec 'street'), so the map pin and distance are approximate."
+     }
+    }
+   }
+  },
+  "period": {
+   "type": "array",
+   "minItems": 6,
+   "maxItems": 6,
+   "description": "[openDay, openHour, openMinute, closeDay, closeHour, closeMinute], day 0 = Sunday … 6 = Saturday, Israel time. A close earlier than the open wraps to the next week.",
+   "prefixItems": [
+    { "type": "integer", "minimum": 0, "maximum": 6 },
+    { "type": "integer", "minimum": 0, "maximum": 23 },
+    { "type": "integer", "minimum": 0, "maximum": 59 },
+    { "type": "integer", "minimum": 0, "maximum": 6 },
+    { "type": "integer", "minimum": 0, "maximum": 24 },
+    { "type": "integer", "minimum": 0, "maximum": 59 }
+   ]
+  },
+  "citiesFile": {
+   "type": "object",
+   "description": "Town → [lat, lng] of its centre (used for places without an exact location and for candle-lighting time).",
+   "propertyNames": { "minLength": 1, "pattern": "^[^<>`]*$" },
+   "additionalProperties": {
+    "type": "array",
+    "minItems": 2,
+    "maxItems": 2,
+    "prefixItems": [
+     { "type": "number", "minimum": 29.3, "maximum": 33.5 },
+     { "type": "number", "minimum": 34.2, "maximum": 35.95 }
+    ]
+   }
+  },
+  "metaFile": {
+   "type": "object",
+   "required": ["updated", "rev"],
+   "additionalProperties": false,
+   "properties": {
+    "updated": { "type": "string", "pattern": "^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$", "description": "Date of the data, YYYY-MM-DD." },
+    "rev": { "type": "integer", "minimum": 1, "description": "Raised by 1 on every data change; the app replaces its built-in copy only with a higher rev." }
+   }
+  }
+ }
+}
