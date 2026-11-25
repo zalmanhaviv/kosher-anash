@@ -670,11 +670,41 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
 // ---------- live data from GitHub: a data change needs no new upload to Netlify ----------
 // The built-in copy shows instantly (and offline); a newer copy from the repository replaces it when it arrives.
 const RAW = 'https://raw.githubusercontent.com/zalmanhaviv/kosher-anash/main/data/';
-const okPlace = p => p && typeof p.n === 'string' && p.n && typeof p.h === 'string' && p.h && HC[p.hc] && Array.isArray(p.t) && typeof p.c === 'string';
+// Gate for remote data: every field the UI uses must have the shape data/schema.json allows (same allowed values);
+// one bad row rejects the whole set and the built-in copy stays. Unknown extra fields are ignored (the UI never reads them).
+const K_OK = ['מסעדה','קייטרינג בשרי','קייטרינג חלבי','אוכל לשבת','אולם אירועים','אולם אירועים (תעודה יומית)','מלון','בית הארחה לשבת'];
+const F_OK = ['פיצה','מאפייה וקונדיטוריה','מסעדה','פלאפל ושווארמה','מעדנייה ואוכל מוכן','קייטרינג בשרי','אולם אירועים','המבורגר וגריל','אוכל לשבת','גלידה','מלון','סושי','קייטרינג חלבי','אחר','בייגל','קפה','בית הארחה לשבת'];
+const T_OK = ['בשרי','חלבי','פרווה'];
+const isStr = v => typeof v === 'string', isNum = v => typeof v === 'number' && isFinite(v);
+const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const PH = /^\+?[0-9][0-9 -]{6,18}[0-9]$/;
+const okPeriod = x => Array.isArray(x) && x.length === 6 && isInt(x[0],0,6) && isInt(x[1],0,23) && isInt(x[2],0,59) && isInt(x[3],0,6) && isInt(x[4],0,24) && isInt(x[5],0,59);
+const okG = g => isObj(g)
+  && isObj(g.loc) && isNum(g.loc.lat) && isNum(g.loc.lng) && g.loc.lat >= 29.3 && g.loc.lat <= 33.5 && g.loc.lng >= 34.2 && g.loc.lng <= 35.95
+  && ['poi','house','street'].includes(g.prec)
+  && isStr(g.chk) && /^20\d\d-(0[1-9]|1[0-2])$/.test(g.chk)
+  && (g.src === undefined || g.src === 'osm')
+  && (g.phone === undefined || (isStr(g.phone) && PH.test(g.phone)))
+  && (g.periods === undefined || (Array.isArray(g.periods) && g.periods.every(okPeriod)))
+  && (g.week === undefined || (Array.isArray(g.week) && g.week.length === 7 && g.week.every(isStr)))
+  && (g.closed === undefined || g.closed === 'סגור לצמיתות' || g.closed === 'סגור זמנית')
+  && (g.q === undefined || (Array.isArray(g.q) && g.q.every(isStr)));
+const okPlace = p => isObj(p)
+  && isStr(p.u) && /^[0-9a-f]{7,8}$/.test(p.u)
+  && isStr(p.n) && p.n !== '' && isStr(p.s) && isStr(p.c) && p.c !== '' && isStr(p.h) && p.h !== ''
+  && isStr(p.tt)
+  && K_OK.includes(p.k) && F_OK.includes(p.f) && Object.prototype.hasOwnProperty.call(HC, p.hc)
+  && Array.isArray(p.t) && p.t.every(t => T_OK.includes(t)) && new Set(p.t).size === p.t.length
+  && (p.p === '' || (isStr(p.p) && PH.test(p.p)))
+  && typeof p.fri === 'boolean'
+  && (p.g === undefined || okG(p.g));
+const okSet = a => Array.isArray(a) && a.length >= 100 && a.every(okPlace) && new Set(a.map(p => p.u)).size === a.length;
+const okMeta = m => isObj(m) && isStr(m.updated) && /^20\d\d-\d\d-\d\d$/.test(m.updated) && Number.isInteger(m.rev) && m.rev >= 1;
 Promise.all(['places.json', 'meta.json'].map(f => fetch(RAW + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)))
   .then(([a, meta]) => {
     // rev goes up with every data change, so a same-day update is picked up too
-    if (!Array.isArray(a) || a.length < 100 || !a.every(okPlace) || !meta || !meta.updated || (meta.rev | 0) <= DATA_REV) return;
+    if (!okMeta(meta) || meta.rev <= DATA_REV || !okSet(a)) return;
     const cur = sel != null ? PLACES[sel] : null;
     PLACES.length = 0;
     a.forEach((p, i) => { p.id = i; p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')); PLACES.push(p); });
