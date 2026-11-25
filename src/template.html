@@ -298,7 +298,7 @@ function nearestCity(ll) { let b = null, bd = 1e9; for (const c in CITY) { const
 // ---------- open status ----------
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ease = o => map && map.easeTo(RM ? Object.assign({}, o, { duration: 0 }) : o);
-const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch {} };
+const buzz = () => { try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(8); } catch {} };
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.chip,.item,.opt,.mkw,.acts a,.acts button')) buzz(); }, true);
 const fmtDate = s => { const [y, m, d] = String(s).split('-').map(Number); return y ? `${d} ב${MONTHS[m - 1]} ${y}` : ''; };
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -499,8 +499,9 @@ async function initMap() {
   map.on('load', () => {
     if (sel != null && PLACES[sel] && LLof(PLACES[sel])) setTimeout(() => panTo(LLof(PLACES[sel])), 50);
     loaded = true;
-    for (const ly of map.getStyle().layers) if (ly.type === 'symbol' && map.getLayoutProperty(ly.id, 'text-field') != null)
-      map.setLayoutProperty(ly.id, 'text-field', ['coalesce', ['get', 'name:he'], ['get', 'name']]);
+    // Hebrew place names; only layers that show a name (road-number signs show 'ref' and must keep it)
+    for (const ly of map.getStyle().layers) { if (ly.type !== 'symbol') continue; const tf = map.getLayoutProperty(ly.id, 'text-field'); if (tf != null && /name/.test(JSON.stringify(tf)) && !/"ref"/.test(JSON.stringify(tf)))
+      map.setLayoutProperty(ly.id, 'text-field', ['coalesce', ['get', 'name:he'], ['get', 'name']]); }
     if (mapMode === 'svg') { $('svgmap').setAttribute('hidden', ''); $('map').hidden = false; map.resize(); }
     mapMode = 'gl'; paint();
   });
