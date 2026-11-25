@@ -308,6 +308,9 @@ function srcLine(g) {
   const [y, m] = c.split('-').map(Number), n = IL(), age = (n.getFullYear() - y) * 12 + n.getMonth() + 1 - m;
   return `<div class="src">לפי Google Maps, נבדק ב${MONTHS[m - 1]} ${y}. ${age > STALE_MONTHS ? '<span class="stale">ייתכן שהשעות השתנו מאז.</span> ' : ''}כדאי לוודא לפני שיוצאים.</div>`;
 }
+// g.q quality flags (data/schema.json): hours that look wrong are shown as published, with a note beside them (owner decision 26.11)
+const DOUBT = 'נראה שהמידע אינו מדוייק';
+const doubtful = p => !!(p.g && Array.isArray(p.g.q) && (p.g.q.includes('hours-shabbat') || p.g.q.includes('hours-24h')));
 const nPl = n => n === 1 ? 'מקום אחד' : n + ' מקומות';
 const byU = u => PLACES.find(p => p.u === u);
 const favs = () => LS.get('kl3_fav', []), isFav = p => favs().includes(p.u);
@@ -369,7 +372,8 @@ function itemHTML({p, st, d}) {
     <span class="bd">
       <div class="nm">${esc(p.n)}</div>
       <div class="l2">${esc([p.s, p.c].filter(Boolean).join(', '))}</div>
-      <div class="l3"><span class="kh k-${p.hc}">${esc(shortH(p))}</span>${p.t.length ? `<span style="color:var(--sub)">${p.t.join('/')}</span>` : ''}${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}</div>
+      <div class="l3"><span class="kh k-${p.hc}">${esc(shortH(p))}</span>${p.t.length ? `<span style="color:var(--sub)">${esc(p.t.join('/'))}</span>` : ''}${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}</div>
+      ${doubtful(p) ? `<div class="src">${DOUBT}</div>` : ''}
     </span>
     <span class="ds">${esc(distTxt(p, d))}</span>
   </button>`;
@@ -433,13 +437,13 @@ function detail(p, keepScroll) {
   const gmu = `https://www.google.com/maps/search/?api=1&query=${q}`;
   const today = now.getDay();
   const hrs = g.week && g.week.length === 7 ? DAYS.map((n, i) => { const v = (g.week[(i + 6) % 7] || '').replace(/^[^:]+:\s*/, ''); const cls = i===today ? 't' : ''; return `<span class="${cls}">${n}</span><span class="${cls}">${/\d/.test(v) ? v.split(/,\s*/).map(x => `<bdi>${esc(x)}</bdi>`).join(', ') : esc(v)}</span>`; }).join('') : '';
-  const fri = now.getDay() === 5 || now.getDay() === 4 ? (() => { const ll2 = LLof(p); if (!ll2) return ''; const f = new Date(now); f.setDate(f.getDate() + (5 - f.getDay())); return `<div class="src">הדלקת נרות ב${esc(p.c)} ביום שישי: ${candles(p.c, ll2, f)} (מנהג חב״ד)</div>`; })() : '';
+  const fri = now.getDay() === 5 || now.getDay() === 4 ? (() => { const ll2 = LLof(p); if (!ll2) return ''; const f = new Date(now); f.setDate(f.getDate() + (5 - f.getDay())); return `<div class="src">הדלקת נרות ב${esc(p.c)} ביום שישי: ${esc(candles(p.c, ll2, f))}</div>`; })() : '';
   $('sTitle').textContent = ''; $('sSub').textContent = '';
   $('sbody').innerHTML = `<div class="det">
     <button class="back" id="back">${IC.back}חזרה לרשימה</button>
     <div class="hd"><h3>${esc(p.n)}</h3><button class="fav" id="fav" aria-pressed="${isFav(p)}" aria-label="שמירה ברשימה שלי">${starSVG(isFav(p))}</button></div>
     <div class="addr">${esc([p.s, p.c].filter(Boolean).join(', '))}</div>
-    <div class="row">${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}${d != null ? `<span>${esc(distTxt(p, d))}</span>` : ''}<span style="color:var(--sub)">${esc(p.f)}${p.t.length ? ', ' + p.t.join('/') : ''}</span></div>
+    <div class="row">${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}${d != null ? `<span>${esc(distTxt(p, d))}</span>` : ''}<span style="color:var(--sub)">${esc(p.f + (p.t.length ? ', ' + p.t.join('/') : ''))}</span></div>
     <div class="acts">
       <a class="pri" href="${waze}" target="_blank" rel="noopener">${IC.nav}ניווט</a>
       <a href="${gmu}" target="_blank" rel="noopener">${IC.gm}גוגל מפות</a>
@@ -447,7 +451,7 @@ function detail(p, keepScroll) {
       ${phone ? `<a href="tel:${esc(phone.replace(/[^\d+]/g,''))}" aria-label="חיוג ${esc(phone)}">${IC.tel}<span>חיוג <small>${esc(phone)}</small></span></a>` : `<a class="off">${IC.tel}אין טלפון</a>`}
     </div>
     <div class="kbox"><span class="ks b-${p.hc}" style="font:800 var(--fs-lg) Assistant,sans-serif">${HL[p.hc]}</span><div><div class="kt">כשרות</div><div class="kn">${esc(p.h || HC[p.hc])}</div><div class="ksrc">לפי מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה</div></div></div>
-    <div class="dl"><h4>שעות פתיחה</h4>${hrs ? `<div class="hrs">${hrs}</div>${srcLine(g)}` : p.fri ? `<div>פתוח בליל שישי (לפי מאגר המסעדות)</div>` : `<div style="color:var(--sub);font-weight:600">${NOINFO}</div>`}${fri}</div>
+    <div class="dl"><h4>שעות פתיחה</h4>${hrs ? `<div class="hrs">${hrs}</div>` : p.fri ? `<div>פתוח בליל שישי (לפי המאגר), השעות לא ידועות</div>` : `<div style="color:var(--sub);font-weight:600">${NOINFO}</div>`}${doubtful(p) ? `<div class="src"><span class="stale">${DOUBT}</span></div>` : ''}${hrs ? srcLine(g) : ''}${fri}</div>
     <div class="report-slot" aria-hidden="true"></div>
     <p class="warn">יש לבדוק את תעודת הכשרות במקום העסק.${exact(p) ? '' : ' המיקום במפה משוער, לפי מרכז הישוב.'}</p>
   </div>`;
@@ -574,7 +578,7 @@ function filters() {
     <div class="fg"><h4>כשרות</h4><div class="opts">${Object.entries(HC).map(([k,v]) => o(S.hc.includes(k), `data-hc="${k}"`, `<span class="d" style="background:${HCOL[k]}"></span>${v}`)).join('')}</div></div>
     <div class="fg"><h4>מה מחפשים</h4><div class="opts">${KINDS.map(([k,v]) => o(S.kind===k, `data-kind="${k}"`, v)).join('')}</div></div>
     ${S.kind === 'מסעדה' ? `<div class="fg"><h4>סוג אוכל</h4><div class="opts">${o(!S.food,'data-food=""','הכל')}${foods.map(f => o(S.food===f, `data-food="${esc(f)}"`, esc(f))).join('')}</div></div>` : ''}
-    <div class="fg"><h4>ישוב</h4><select class="sel" id="fCity"><option value="">כל הארץ</option>${cities.map(c => `<option${S.city===c?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="fg"><h4>ישוב</h4><select class="sel" id="fCity"><option value="">כל הארץ</option>${cities.map(c => `<option${S.city===c?' selected':''}>${esc(c)}</option>`).join('')}</select></div>
     <div class="fg"><h4>מיון</h4><div class="opts">${o(S.sort==='dist','data-sort="dist"','לפי מרחק')}${o(S.sort==='name','data-sort="name"','לפי שם')}</div></div>
     <div class="dbar"><button class="btn ghost" id="fClr">ניקוי</button><button class="btn pri" id="fOk">הצגת ${rows.length} מקומות</button></div>`);
   $('dlg').onclick = e => {
@@ -623,11 +627,11 @@ function fridayBanner(now) {
   const city = S.city || (ME && ME.label) || ''; const ll = S.city ? cityLL(S.city) : ME; if (!city || !ll) return '';
   const f = new Date(now); f.setDate(f.getDate() + (5 - dw)); const t = candles(city, ll, f);
   if (dw === 5 && hhmm(now.getHours()*60 + now.getMinutes()) >= t) return '';
-  const dn = dayName(f); return `<div class="shab">הדלקת נרות ב${esc(city)} ${dn === 'היום' || dn === 'מחר' ? dn : 'ביום שישי'}: ${t} (מנהג חב״ד)</div>`;
+  const dn = dayName(f); return `<div class="shab">הדלקת נרות ב${esc(city)} ${dn === 'היום' || dn === 'מחר' ? dn : 'ביום שישי'}: ${esc(t)}</div>`;
 }
 function cityDlg() {
   const cities = Object.keys(CITY).filter(c => PLACES.some(p => p.c === c)).sort((a,b) => a.localeCompare(b,'he'));
-  openDlg(`<h3 tabindex="-1">באיזה ישוב?</h3><div class="fg"><select class="sel" id="cSel"><option value="">בחירה…</option>${cities.map(c => `<option>${c}</option>`).join('')}</select></div><div class="dbar"><button class="btn pri" id="cOk">הצגה</button></div>`);
+  openDlg(`<h3 tabindex="-1">באיזה ישוב?</h3><div class="fg"><select class="sel" id="cSel"><option value="">בחירה…</option>${cities.map(c => `<option>${esc(c)}</option>`).join('')}</select></div><div class="dbar"><button class="btn pri" id="cOk">הצגה</button></div>`);
   $('dlg').onclick = e => { if (e.target.id !== 'cOk') return; const c = $('cSel').value; if (!c) return; S.city = c; closeDlg(); sel = null; shown = 40; render(); snap('half'); if (map && cityLL(c)) ease({ center:[cityLL(c).lng, cityLL(c).lat], zoom:14 }); };
 }
 
@@ -666,11 +670,41 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
 // ---------- live data from GitHub: a data change needs no new upload to Netlify ----------
 // The built-in copy shows instantly (and offline); a newer copy from the repository replaces it when it arrives.
 const RAW = 'https://raw.githubusercontent.com/zalmanhaviv/kosher-anash/main/data/';
-const okPlace = p => p && typeof p.n === 'string' && p.n && typeof p.h === 'string' && p.h && HC[p.hc] && Array.isArray(p.t) && typeof p.c === 'string';
+// Gate for remote data: every field the UI uses must have the shape data/schema.json allows (same allowed values);
+// one bad row rejects the whole set and the built-in copy stays. Unknown extra fields are ignored (the UI never reads them).
+const K_OK = ['מסעדה','קייטרינג בשרי','קייטרינג חלבי','אוכל לשבת','אולם אירועים','אולם אירועים (תעודה יומית)','מלון','בית הארחה לשבת'];
+const F_OK = ['פיצה','מאפייה וקונדיטוריה','מסעדה','פלאפל ושווארמה','מעדנייה ואוכל מוכן','קייטרינג בשרי','אולם אירועים','המבורגר וגריל','אוכל לשבת','גלידה','מלון','סושי','קייטרינג חלבי','אחר','בייגל','קפה','בית הארחה לשבת'];
+const T_OK = ['בשרי','חלבי','פרווה'];
+const isStr = v => typeof v === 'string', isNum = v => typeof v === 'number' && isFinite(v);
+const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const PH = /^\+?[0-9][0-9 -]{6,18}[0-9]$/;
+const okPeriod = x => Array.isArray(x) && x.length === 6 && isInt(x[0],0,6) && isInt(x[1],0,23) && isInt(x[2],0,59) && isInt(x[3],0,6) && isInt(x[4],0,24) && isInt(x[5],0,59);
+const okG = g => isObj(g)
+  && isObj(g.loc) && isNum(g.loc.lat) && isNum(g.loc.lng) && g.loc.lat >= 29.3 && g.loc.lat <= 33.5 && g.loc.lng >= 34.2 && g.loc.lng <= 35.95
+  && ['poi','house','street'].includes(g.prec)
+  && isStr(g.chk) && /^20\d\d-(0[1-9]|1[0-2])$/.test(g.chk)
+  && (g.src === undefined || g.src === 'osm')
+  && (g.phone === undefined || (isStr(g.phone) && PH.test(g.phone)))
+  && (g.periods === undefined || (Array.isArray(g.periods) && g.periods.every(okPeriod)))
+  && (g.week === undefined || (Array.isArray(g.week) && g.week.length === 7 && g.week.every(isStr)))
+  && (g.closed === undefined || g.closed === 'סגור לצמיתות' || g.closed === 'סגור זמנית')
+  && (g.q === undefined || (Array.isArray(g.q) && g.q.every(isStr)));
+const okPlace = p => isObj(p)
+  && isStr(p.u) && /^[0-9a-f]{7,8}$/.test(p.u)
+  && isStr(p.n) && p.n !== '' && isStr(p.s) && isStr(p.c) && p.c !== '' && isStr(p.h) && p.h !== ''
+  && isStr(p.tt)
+  && K_OK.includes(p.k) && F_OK.includes(p.f) && Object.prototype.hasOwnProperty.call(HC, p.hc)
+  && Array.isArray(p.t) && p.t.every(t => T_OK.includes(t)) && new Set(p.t).size === p.t.length
+  && (p.p === '' || (isStr(p.p) && PH.test(p.p)))
+  && typeof p.fri === 'boolean'
+  && (p.g === undefined || okG(p.g));
+const okSet = a => Array.isArray(a) && a.length >= 100 && a.every(okPlace) && new Set(a.map(p => p.u)).size === a.length;
+const okMeta = m => isObj(m) && isStr(m.updated) && /^20\d\d-\d\d-\d\d$/.test(m.updated) && Number.isInteger(m.rev) && m.rev >= 1;
 Promise.all(['places.json', 'meta.json'].map(f => fetch(RAW + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)))
   .then(([a, meta]) => {
     // rev goes up with every data change, so a same-day update is picked up too
-    if (!Array.isArray(a) || a.length < 100 || !a.every(okPlace) || !meta || !meta.updated || (meta.rev | 0) <= DATA_REV) return;
+    if (!okMeta(meta) || meta.rev <= DATA_REV || !okSet(a)) return;
     const cur = sel != null ? PLACES[sel] : null;
     PLACES.length = 0;
     a.forEach((p, i) => { p.id = i; p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')); PLACES.push(p); });
