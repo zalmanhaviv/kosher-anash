@@ -1,0 +1,16 @@
+/* tokens shared by all four styles: kashrut groups, status, review page. Meaning stays the same in every style. */
+:root{
+  --k-chabad:#24407A;--k-eda:#8C2D45;--k-landa:#6B5414;--k-products:#4B5563;--k-on:#FFFFFF;
+  --open:#11703A;--soon:#A24E00;--closed:#B3261E;--warn-bg:#FFF3D6;--warn-ink:#704300;
+  --focus-w:3px;--dur:.24s;--press:.97;
+  --page:#E9EAEC;--frame:#16181B;--frame-edge:#2B2E33;
+  --rv-bg:#FFFFFF;--rv-ink:#16181B;--rv-sub:#545B66;--rv-line:#D5D8DD;
+  --scrim:rgba(10,14,20,.38);
+}
+:root[data-theme=dark]{
+  --k-chabad:#A9C1F2;--k-eda:#F2A9BA;--k-landa:#E6C873;--k-products:#B9C1CC;--k-on:#121418;
+  --open:#62D394;--soon:#F6AE5E;--closed:#FF8F85;--warn-bg:#3A2E12;--warn-ink:#F6D184;
+  --page:#0B0C0E;--frame:#000000;--frame-edge:#33363C;
+  --rv-bg:#16181B;--rv-ink:#EEF0F3;--rv-sub:#A3AAB5;--rv-line:#30343A;
+  --scrim:rgba(0,0,0,.55);
+}
