@@ -519,7 +519,7 @@ describe('offline and install', () => {
     // an illustrated guide in a sheet that stays until closed, not a 2-second toast (S2-1, P2-4)
     await r.page.waitForSelector('#dlg.on');
     assert.equal(await r.page.textContent('#dlgT'), 'הוספה למסך הבית');
-    assert.match(await r.page.textContent('#dlg'), /כפתור השיתוף[\s\S]*הוספה למסך הבית/);
+    assert.match(await r.page.textContent('#dlg'), /כפתור השיתוף[\s\S]*לוחצים קודם על ⋯[\s\S]*הוספה למסך הבית/, 'iOS 26: Share may be under ⋯');
     assert.ok(await r.page.locator('#dlg svg').count() >= 2, 'icons for the steps');
     await r.page.waitForTimeout(2600); assert.ok(await r.page.isVisible('#dlg.on'), 'still open');
     await r.page.click('#iosOk'); await r.page.waitForFunction(() => !document.getElementById('dlg').classList.contains('on'));
@@ -740,6 +740,28 @@ describe('S2-1 map-ux', () => {
     }
     await done(r);
   });
+  test('S2 review #5: distance from a town centre says "ממרכז <ישוב>" wherever no heading says it (card, name sort, Friday)', async () => {
+    const cityRow = /^\d+ ק״מ ממרכז צפת$/;
+    // name sort: no section headings
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE, ls: { kl3_f: JSON.stringify({ city: 'צפת', sort: 'name' }) } });
+    const rows = await r.page.$$eval('#sbody .item', a => a.map(x => ({ u: x.dataset.u, ds: x.querySelector('.ds').innerText.replace(/\s+/g, ' ').trim() })));
+    assert.equal(await r.page.$$eval('#sbody .sec-h:has-text("ממרכז")', a => a.length), 0);
+    let outside = rows.filter(x => DATA.find(q => q.u === x.u).c !== 'צפת');
+    assert.ok(outside.length > 0);
+    for (const x of outside) assert.match(x.ds, cityRow, x.u);
+    // card of a place around the town
+    await r.page.click(`#sbody .item[data-u="${outside[0].u}"]`); await r.page.waitForSelector('.det');
+    assert.match(await r.page.textContent('.det .row'), /\d+ ק״מ ממרכז צפת/);
+    await done(r);
+    // Friday mode: no headings either
+    const r2 = await go('/', { viewport: PHONE, mobile: true, time: FRI, ls: { kl3_f: JSON.stringify({ city: 'צפת' }) } });
+    await r2.page.click('#cFri'); await r2.page.waitForFunction(() => document.getElementById('sTitle').textContent === 'פתוח בשישי');
+    const fr = await r2.page.$$eval('#sbody .item', a => a.map(x => ({ u: x.dataset.u, ds: x.querySelector('.ds').innerText.replace(/\s+/g, ' ').trim() })));
+    outside = fr.filter(x => x.ds && DATA.find(q => q.u === x.u).c !== 'צפת');
+    assert.ok(outside.length > 0);
+    for (const x of outside) assert.match(x.ds, cityRow, x.u);
+    await done(r2);
+  });
   test('P1-9 near me: approximate places say "בערך" (or the town) and come after exact ones in their band', async () => {
     const geo = { latitude: 31.7525, longitude: 34.7712 }; // Kiryat Malachi: two places there have only the town
     const r = await go('/', { viewport: PHONE, mobile: true, time: TUE, geo });
@@ -762,7 +784,7 @@ describe('S2-1 map-ux', () => {
   });
   test('P1-9 card: approximate location said at the top; no street -> "אין כתובת במאגר"', async () => {
     const r = await go('/?p=d5c9ab7', { viewport: PHONE, mobile: true, time: TUE }); // town only, has a street
-    assert.match(await r.page.textContent('.det .addr + .src'), /המיקום במפה משוער, לפי מרכז הישוב/);
+    assert.match(await r.page.textContent('.det .addr + .src'), /המיקום במפה משוער \(לפי מרכז הישוב\)/);
     await done(r);
     const noStreet = DATA.find(p => !p.s && !(p.g && p.g.loc));
     const r2 = await go('/?p=' + noStreet.u, { viewport: PHONE, mobile: true, time: TUE });
@@ -770,7 +792,7 @@ describe('S2-1 map-ux', () => {
     await done(r2);
     const street = DATA.find(p => p.g && p.g.prec === 'street');
     const r3 = await go('/?p=' + street.u, { viewport: PHONE, mobile: true, time: TUE });
-    assert.match(await r3.page.textContent('.det .addr + .src'), /ברמת הרחוב/);
+    assert.match(await r3.page.textContent('.det .addr + .src'), /המיקום במפה משוער \(ברמת הרחוב\)/);
     await done(r3);
   });
 
@@ -831,7 +853,7 @@ describe('S2-1 map-ux', () => {
     const pizza = search('פיצה').length;
     for (const q of ['פציה', 'פיזה']) {
       await typeQ(page, q);
-      assert.match(await page.textContent('#sbody .note'), /לא נמצאה התאמה מדויקת/);
+      assert.match(await page.textContent('#sbody .note'), /לא נמצאה התאמה מדוייקת ל״.+״\. מוצגות תוצאות דומות\./);
       const fs = await page.$$eval('#sbody .item', a => a.slice(0, 20).map(x => x.dataset.u));
       assert.ok(fs.every(u => hay(DATA.find(p => p.u === u)).includes('פיצה')), q + ': closest (pizza) first');
       assert.ok(+((await sub(page)).match(/\d+/) || [0])[0] >= pizza, q);
@@ -841,7 +863,7 @@ describe('S2-1 map-ux', () => {
     assert.ok(su.length >= search('סושי').length);
     assert.ok(su.slice(0, search('סושי').length).every(u => hay(DATA.find(p => p.u === u)).includes('סושי')), 'sushi first');
     await typeQ(page, 'פיצה');
-    assert.equal(await page.locator('#sbody .note:has-text("התאמה מדויקת")').count(), 0, 'no note for an exact word');
+    assert.equal(await page.locator('#sbody .note:has-text("התאמה מדוייקת")').count(), 0, 'no note for an exact word');
     assert.equal(await sub(page), nPl(pizza));
     await typeQ(page, 'פיתה'); // found exactly somewhere: never widened to 'פיצה'
     assert.equal(await sub(page), nPl(search('פיתה').length));
@@ -863,6 +885,15 @@ describe('S2-1 map-ux', () => {
     await typeQ(page, 'קקקזזז');
     for (const b of await page.$$eval('#sbody [data-widen]', a => a.map(x => x.textContent))) assert.match(b, / · [1-9]\d*$/, 'every offer has results');
     assert.ok(await page.isVisible('#clr'));
+    await done(r);
+  });
+  test('S2 review wording: the meat/dairy reset says "כל הסוגים (בשרי, חלבי ופרווה)"', async () => {
+    // a dairy-only place searched by name with only "בשרי" on: the way out resets the type filter
+    const p = restaurants.find(x => x.t.length === 1 && x.t[0] === 'חלבי' && search(x.n).every(q => !q.t.includes('בשרי')));
+    const r = await go('/', { viewport: PHONE, time: TUE, ls: { kl3_f: JSON.stringify({ t: ['בשרי'] }) } });
+    await typeQ(r.page, p.n);
+    const btns = await r.page.$$eval('#sbody [data-widen]', a => a.map(x => x.textContent));
+    assert.ok(btns.some(t => /^כל הסוגים \(בשרי, חלבי ופרווה\) · \d+$/.test(t)), btns.join('|'));
     await done(r);
   });
 
@@ -895,7 +926,7 @@ describe('S2-1 map-ux', () => {
   });
   test('P2-6 privacy line in the footer', async () => {
     const r = await go('/', { viewport: PHONE, time: TUE });
-    assert.match(await r.page.textContent('.foot'), /המיקום שלך נשאר במכשיר ולא נשמר[\s\S]*OpenFreeMap[\s\S]*GitHub/);
+    assert.match(await r.page.textContent('.foot'), /המיקום שלך משמש רק במכשיר, לחישוב המרחק\. הוא לא נשלח ולא נשמר\. אריחי המפה של האזור שבמסך נטענים מ-OpenFreeMap, והנתונים מ-GitHub\. אין מעקב ואין פרסומות\./);
     await done(r);
   });
 
