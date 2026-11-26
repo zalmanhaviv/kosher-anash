@@ -17,27 +17,48 @@ function sunset(ll, day) {
 }
 function candles(city, ll, day) { const ss = sunset(ll, day); const min = city === 'ירושלים' ? 40 : 18; const c = IL(new Date(ss.getTime() - min*60000)); return hhmm(c.getHours()*60 + c.getMinutes()); }
 const NOINFO = 'אין מידע על שעות הפעילות';
+const WEEK = 7 * 1440;
+// published periods -> merged opening intervals in week-minutes (0 = Sunday 00:00), sorted.
+// Back-to-back, overlapping and midnight-crossing periods become one interval, so a 24-hour place or
+// one open 08:00-00:00 then 00:00-02:00 has no false boundary. Copies a week before and after cover the
+// Saturday -> Sunday wrap. An interval of a full week or more means open around the clock.
+// A period whose close equals its open is a whole week (Google's convention for 'always open').
+function openIntervals(periods) {
+  const raw = [];
+  for (const [od, oh, om, cd, ch, cm] of periods || []) {
+    const o = od*1440 + oh*60 + om; let c = cd*1440 + ch*60 + cm; if (c <= o) c += WEEK;
+    for (const k of [-WEEK, 0, WEEK]) raw.push([o + k, c + k]);
+  }
+  raw.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const out = [];
+  for (const [o, c] of raw) { const last = out[out.length - 1]; if (last && o <= last[1]) last[1] = Math.max(last[1], c); else out.push([o, c]); }
+  return out;
+}
 // status of a place at a given Israel wall-clock time. planned = the user picked a future time.
 function statusAt(p, now, planned) {
   if (p.g && p.g.closed) return { s:'x', t: p.g.closed === 'סגור לצמיתות' ? 'נסגר לצמיתות (לפי גוגל)' : 'סגור זמנית (לפי גוגל)', r:4 };
   const g = p.g, wm = now.getDay()*1440 + now.getHours()*60 + now.getMinutes();
   if (g && g.periods && g.periods.length) {
-    let next = null;
-    for (const [od,oh,om,cd,ch,cm] of g.periods) {
-      const o = od*1440 + oh*60 + om; let c = cd*1440 + ch*60 + cm; if (c <= o) c += 7*1440;
-      for (const w of [wm, wm + 7*1440]) if (w >= o && w < c) {
-        const left = c - w;
-        if (left <= 60) return { s:'s', t: planned ? 'נסגר ב־' + hhmm(c % 1440) : 'נסגר בעוד ' + left + ' דק׳', r:0 };
-        return { s:'y', t:'פתוח עד ' + hhmm(c % 1440), r:0 };
-      }
-      const u = (o - wm + 7*1440) % (7*1440); if (!next || u < next.u) next = { u, o };
+    const iv = openIntervals(g.periods);
+    for (const [o, c] of iv) if (wm >= o && wm < c) {
+      if (c - o >= WEEK) return { s:'y', t:'פתוח 24 שעות', r:0 };
+      const left = c - wm;
+      if (left <= 60) return { s:'s', t: planned ? 'נסגר ב־' + hhmm(c % 1440) : 'נסגר בעוד ' + left + ' דק׳', r:0 };
+      // the day of the close, with 00:00 counted as midnight of the day before
+      const cm = c % 1440, k = c - (cm === 0 ? 1 : 0), kd = Math.floor((wm % 1440 + k - wm) / 1440);
+      // tonight, or a late-night close (until 06:00 next morning): the hour alone; further away the day is named
+      if (kd === 0 || (kd === 1 && cm > 0 && cm <= 360)) return { s:'y', t:'פתוח עד ' + hhmm(cm), r:0 };
+      const day = kd === 1 ? (planned ? 'למחרת' : 'מחר') : 'יום ' + DAYS[Math.floor(k / 1440) % 7];
+      return { s:'y', t:'פתוח עד ' + day + (cm === 0 ? ' בחצות' : ' ב־' + hhmm(cm)), r:0 };
     }
     const shut = planned ? 'סגור בשעה הזו' : 'סגור עכשיו';
-    if (!next) return { s:'n', t:shut, r:3 };
-    const dd = Math.floor((wm % 1440 + next.u) / 1440), od = Math.floor(next.o / 1440) % 7;
+    const nx = iv.find(([o]) => o > wm);
+    if (!nx) return { s:'n', t:shut, r:3 };
+    const u = nx[0] - wm, od = Math.floor(nx[0] / 1440) % 7;
+    const dd = Math.floor((wm % 1440 + u) / 1440);
     const when = dd === 0 ? (planned ? '' : 'היום ') : dd === 1 ? (planned ? 'למחרת ' : 'מחר ') : 'ביום ' + DAYS[od] + ' ';
-    const opens = 'נפתח ' + when + 'ב־' + hhmm(next.o % 1440);
-    return next.u < 20*60 ? { s:'n', t:opens, r:1 } : { s:'n', t:shut + ' · ' + opens, r:3 };
+    const opens = 'נפתח ' + when + 'ב־' + hhmm(nx[0] % 1440);
+    return u < 20*60 ? { s:'n', t:opens, r:1 } : { s:'n', t:shut + ' · ' + opens, r:3 };
   }
   // the source list only says 'open Thursday night'; no hours were published, so never compute open/closed from it
   if (p.fri) return { s:'u', t:'פתוח בליל שישי (לפי המאגר), השעות לא ידועות', r:2 };
@@ -55,11 +76,16 @@ function normText(s) {
   s = s.replace(/א(?=\s|$)/g, 'ה');            // final alef as he: פיצא = פיצה
   return s.replace(/\s+/g, ' ').trim();
 }
-// Friday opening ranges in minutes [open, close] from published hours only
+// Friday opening ranges in minutes from Friday 00:00 [open, close], from published hours only.
+// Uses the merged intervals: an interval that opens on Friday is kept whole (its close may pass midnight);
+// one that opened earlier and is still open after 06:00 on Friday starts at 0 (a Thursday-night spill that
+// ends before dawn is not a Friday opening). Open around the clock -> [0, 1440].
 function friRanges(p) {
-  const out = [];
-  for (const [od, oh, om, cd, ch, cm] of (p.g && p.g.periods) || []) if (od === 5) {
-    let c = (cd - od) * 1440 + ch * 60 + cm; const o = oh * 60 + om; if (c <= o) c += 1440; out.push([o, c]);
+  const F = 5 * 1440, out = [];
+  for (const [o, c] of openIntervals(p.g && p.g.periods)) {
+    if (c - o >= WEEK) { if (o <= F) return [[0, 1440]]; continue; }
+    if (o >= F && o < F + 1440) out.push([o - F, c - F]);
+    else if (o < F && c > F + 360) out.push([0, c - F]);
   }
   return out.sort((a, b) => a[0] - b[0]);
 }
