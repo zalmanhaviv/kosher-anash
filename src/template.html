@@ -251,6 +251,8 @@ text{font-family:var(--font)!important}
   .toast{top:auto;bottom:var(--s6)}
   .attr,.maplibregl-ctrl-bottom-right{bottom:0;right:var(--desk-attr)}
 }
+/* narrow phones (360px): the search field gets the side padding back so the whole placeholder fits (QA2-8) */
+@media (max-width:380px){.sbar input{padding:0 var(--s1)}}
 @media (max-width:330px){.brandmark,.sbar .sep{display:none}.cta{flex-direction:column;align-items:stretch}.cta .btn{white-space:normal;height:auto;min-height:var(--tap)}.acts{grid-template-columns:repeat(2,1fr)}}
 .report-slot{display:none} /* reserved: "report a mistake" button, deferred by decision */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}button:active{transform:none}}
@@ -472,14 +474,38 @@ function fuzzyWord(t) {
     memo.set(w, s); return s; };
   return p => Math.min(...(p.words || (p.words = p.hay.split(' '))).map(sc));
 }
-// per search word: score 0 = exact; fuzzy words score 0–3; 9 = no match
-const termMatchers = terms => terms.map(t => PLACES.some(p => p.hay.includes(t)) || t.length < 3 || !/[א-ת]/.test(t) ? { fz: false, sc: p => p.hay.includes(t) ? 0 : 9 } : { fz: true, sc: fuzzyWord(t) });
-let FUZZY = false;
+// Town names (QA2-7): a search word that is a spelling variant of a town word – a yod or vav more or less (ירושלם,
+// קרית), letters that sound alike, or for 5+ letters one edit – also finds that town's places, even when the word is found
+// exactly somewhere else ('ירושלם' is inside 'ירושלמי'). Also a town written without its space (בניברק).
+// Returns the towns, or null. A town word, or any whole word of the data, never goes here.
+const loose = w => phon(w).replace(/[וי]/g, '');
+let TW = null, TW_REV = -1;
+const townWords = () => { if (TW && TW_REV === DATA_REV && TW.n === PLACES.length) return TW; TW = new Map(); TW.n = PLACES.length; TW_REV = DATA_REV;
+  for (const c of new Set(PLACES.map(p => p.c))) { const n = norm(c); for (const w of new Set([...n.split(' '), n.replace(/ /g, '')])) if (w.length >= 3) (TW.get(w) || TW.set(w, new Set()).get(w)).add(c); }
+  return TW; };
+function townVariant(t) {
+  if (t.length < 4 || !/[א-ת]/.test(t)) return null;
+  const W = townWords();
+  if (W.has(t)) return PLACES.some(p => p.hay.includes(t)) ? null : W.get(t); // only 'בניברק' (no space) is not in the text
+  if (df().has(t)) return null; // a real word of the data (סופר, כרמל, ירושלמי) stays itself
+  const lt = loose(t), pt = phon(t), out = new Set();
+  for (const [w, cs] of W) if ((lt.length >= 3 && loose(w) === lt) || (t.length >= 5 && w.length >= 5 && ed1(pt, phon(w)))) cs.forEach(c => out.add(c));
+  return out.size ? out : null;
+}
+// per search word: score 0 = exact; fuzzy words score 0–3; 9 = no match. A one-letter word matches only the start of
+// a word, not any letter inside one ('ב' brought 426 places).
+const plain = t => t.length === 1 ? p => (' ' + p.hay).includes(' ' + t) ? 0 : 9 : p => p.hay.includes(t) ? 0 : 9;
+const termMatchers = terms => terms.map(t => {
+  const tv = townVariant(t);
+  if (tv) { const pm = plain(t); return { fz: false, towns: tv, sc: p => tv.has(p.c) ? 0 : pm(p) }; }
+  return PLACES.some(p => p.hay.includes(t)) || t.length < 3 || !/[א-ת]/.test(t) ? { fz: false, sc: plain(t) } : { fz: true, sc: fuzzyWord(t) };
+});
+let FUZZY = false, TOWNV = [];
 // o.all: the current view without 'open now' / 'open on Friday' (for the open-now count on the chip, P1-10)
 function results(o = {}) {
   const open = o.all ? false : S.open, fri = o.all ? false : S.fri;
   const terms = norm(S.q).split(' ').filter(Boolean), now = T(), out = [], tm = termMatchers(terms);
-  if (!o.all && !o.probe) FUZZY = tm.some(m => m.fz);
+  if (!o.all && !o.probe) { FUZZY = tm.some(m => m.fz); TOWNV = [...new Set(tm.flatMap(m => m.towns ? [...m.towns] : []))]; }
   for (const p of PLACES) {
     if (S.kind && !p.k.startsWith(S.kind)) continue;
     if (S.city && p.c !== S.city) { const c = cityLL(S.city), ll = LLof(p); if (!c || !ll || km(c, ll) > NEAR_KM) continue; }
@@ -545,13 +571,14 @@ function render() {
   $('sTitle').textContent = S.fri ? 'פתוח בשישי' : ME ? (ME.src === 'gps' ? 'קרוב אליך' : 'ליד ' + ME.label) : (S.city ? S.city + ' והסביבה' : 'מקומות כשרים');
   { const nU = S.open && !S.fri ? rows.filter(r => r.st.s === 'u').length : 0, nO = rows.length - nU;
     $('sSub').textContent = !rows.length ? '' : !(S.open && !S.fri) ? nPl(rows.length)
-      : (nO === 1 ? 'מקום אחד פתוח' : nO + ' פתוחים') + (nU ? ` · ${nU} בלי מידע על שעות` : ''); }
+      : (nO === 0 ? (S.when ? 'אין מקומות פתוחים בזמן הזה' : 'אין מקומות פתוחים כרגע') : nO === 1 ? 'מקום אחד פתוח' : nO + ' פתוחים') + (nU ? ` · ${nU} בלי מידע על שעות` : ''); }
   let top = '';
   if (!ME && !S.city) top = `<div class="cta"><p><b>מה קרוב אליך?</b>נציג קודם את המקומות הכי קרובים.</p><div style="display:flex;flex-direction:column;gap:6px"><button class="btn pri" id="ctaGps">איתור מיקום</button><button class="btn ghost" id="ctaCity">בחירת ישוב</button></div></div>`;
   const fb = fridayBanner(now); if (fb) top += fb;
   if (S.fri) top += `<div class="note">מקומות שפתוחים ביום שישי לפי השעות שפורסמו, מהנסגר הכי מאוחר. בסוף: מקומות לאוכל לשבת שאין עליהם מידע על שעות.</div>`;
   if (showInstallCard()) top += `<div class="instc"><p><b>להוסיף למסך הבית?</b><br>נפתח מהר, גם כשהקליטה חלשה.</p><button class="btn pri" id="instY">הוספה</button><button class="btn ghost" id="instN" aria-label="לא עכשיו">לא</button></div>`;
   if (!S.q && !S.fri) top += personalHTML(now);
+  if (TOWNV.length && rows.some(r => TOWNV.includes(r.p.c))) top += `<div class="note">מוצגים גם מקומות ב${esc(TOWNV.slice(0, 3).join(', ב'))}${TOWNV.length > 3 ? ' ועוד' : ''}.</div>`;
   if (FUZZY && rows.length) top += `<div class="note">לא נמצאה התאמה מדוייקת ל״${esc(S.q.trim())}״. מוצגות תוצאות דומות.</div>`;
   if (S.open) top += `<div class="note">מוצגים מקומות ש${S.when ? 'פתוחים בזמן שבחרתם (' + wl + ')' : 'פתוחים עכשיו'} לפי שעות הפעילות ברשת. בסוף הרשימה גם מקומות שאין עליהם מידע על שעות הפעילות.</div>`;
   const slice = rows.slice(0, shown);
@@ -589,7 +616,23 @@ function emptyHTML() {
 
 // ---------- detail ----------
 const fmtHrs = v => /^0?0:00\s*[–-]\s*24:00$/.test(v.trim()) ? 'פתוח 24 שעות' : v.replace(/(^|[^\d])(\d):(\d\d)/g, (_, a, h, m) => a + '0' + h + ':' + m);
-function detail(p, keepScroll) {
+// keyboard / screen reader: a card opened by the user takes focus on its heading; closing it gives focus back to the row
+// it came from (a list row or a 'recent' row; a marker is not focusable, so its place's row, else the list heading) (QA2-2)
+let cardFrom = null;
+function cardOrigin(p) {
+  const a = document.activeElement, sb = $('sbody');
+  if (a && sb.contains(a) && a.dataset && a.dataset.u) return `.item[data-u="${CSS.escape(a.dataset.u)}"]`;
+  if (a && sb.contains(a) && a.dataset && a.dataset.rec) return `[data-rec="${CSS.escape(a.dataset.rec)}"]`;
+  return `.item[data-u="${CSS.escape(p.u)}"]`;
+}
+function focusBack() {
+  const sb = $('sbody'), el = cardFrom && sb.querySelector(cardFrom); cardFrom = null;
+  (el || $('sTitle')).focus({ preventScroll: true });
+  if (el) { const r = el.getBoundingClientRect(), b = sb.getBoundingClientRect(); if (r.top < b.top || r.bottom > b.bottom) sb.scrollTop += r.top - b.top - (b.height - r.height) / 2; }
+}
+// quiet: opened by the page itself (a shared ?p= link on load), not by the user: focus is not moved
+function detail(p, keepScroll, quiet) {
+  if (!keepScroll && sel == null) cardFrom = cardOrigin(p);
   sel = p.id;
   addRecent(p);
   const st = status(p), d = distOf(p), g = p.g || {}, now = T();
@@ -606,7 +649,7 @@ function detail(p, keepScroll) {
   $('sTitle').textContent = ''; $('sSub').textContent = '';
   $('sbody').innerHTML = `<div class="det">
     <button class="back" id="back">${IC.back}חזרה לרשימה</button>
-    <div class="hd"><h3>${esc(p.n)}</h3><button class="fav" id="fav" aria-pressed="${isFav(p)}" aria-label="שמירה ברשימה שלי">${starSVG(isFav(p))}</button></div>
+    <div class="hd"><h3 id="detT" tabindex="-1">${esc(p.n)}</h3><button class="fav" id="fav" aria-pressed="${isFav(p)}" aria-label="שמירה ברשימה שלי">${starSVG(isFav(p))}</button></div>
     <div class="addr">${p.s ? esc(p.s + ', ' + p.c) : esc(p.c) + ' · אין כתובת במאגר'}</div>
     ${exact(p) ? '' : `<div class="src">${hasLoc(p) ? 'המיקום במפה משוער (ברמת הרחוב).' : 'המיקום במפה משוער (לפי מרכז הישוב).'}</div>`}
     <div class="row">${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}${distTxt(p, d) ? `<span>${esc(distTxt(p, d))}</span>` : ''}<span style="color:var(--sub)">${esc(p.f + (p.t.length ? ', ' + p.t.join('/') : ''))}</span></div>
@@ -624,7 +667,7 @@ function detail(p, keepScroll) {
   $('back').onclick = closeCard;
   $('share').onclick = () => sharePlace(p, gmu);
   $('fav').onclick = () => { toggleFav(p); const on = isFav(p); $('fav').setAttribute('aria-pressed', on); $('fav').innerHTML = starSVG(on); toast(on ? 'נשמר ברשימה שלי' : 'הוסר מהרשימה שלי'); };
-  if (!keepScroll) { $('sbody').scrollTop = 0; snap('half'); if (ll) panTo(ll); }
+  if (!keepScroll) { $('sbody').scrollTop = 0; snap('half'); if (ll) panTo(ll); if (!quiet) $('detT').focus({ preventScroll: true }); }
   paint(); syncHist();
 }
 
@@ -810,31 +853,34 @@ function closeDlg() {
   setTimeout(() => { const a = document.activeElement; if ((!a || a === document.body) && !dlgOpen()) $('sTitle').focus({ preventScroll:true }); }, 0);
   syncHist();
 }
-function closeCard() { if (sel == null) return; sel = null; render(); }
+function closeCard() { if (sel == null) return; sel = null; render(); focusBack(); }
 
 // ---------- history: every open layer is one history entry, so the phone's Back closes it instead of leaving (P1-8) ----------
 // Layers: (1) a place card, or the phone sheet pulled up to full height; (2) a dialog on top. history.state.kd = depth.
 // A layer closed by the app itself (button, Esc, a filter change) steps back too, so entries never pile up.
+// Entries carry the id of the page load that made them (h). A reload cleans only the current entry; the older entries of
+// the previous load are left in the browser's list, and Back onto one of them must not open its card again (QA2-4).
 let hSkip = 0, hPop = false, hLater = false;
+const HID = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const hDepth = () => (history.state && history.state.kd) | 0;
 const hWant = () => ((sel != null || (snapName === 'full' && !wide())) ? 1 : 0) + (dlgOpen() ? 1 : 0);
 function syncHist() {
   if (hPop) return;
   if (hSkip) { hLater = true; return; } // our own step back has not landed yet
   const want = hWant(), now = hDepth(), u = sel != null && PLACES[sel] ? PLACES[sel].u : null;
-  if (want > now) { for (let i = now + 1; i <= want; i++) history.pushState({ kd: i, u }, ''); }
+  if (want > now) { for (let i = now + 1; i <= want; i++) history.pushState({ kd: i, u, h: HID }, ''); }
   else if (want < now) { if (dlgOpen()) return; hSkip++; history.go(want - now); } // the card under an open dialog closed: wait for the dialog
-  else if (now && history.state.u !== u) history.replaceState({ kd: now, u }, ''); // another card in the same layer: no new entry
+  else if (now && history.state.u !== u) history.replaceState({ kd: now, u, h: HID }, ''); // another card in the same layer: no new entry
 }
 addEventListener('popstate', () => {
   if (hSkip) { hSkip--; if (!hSkip && hLater) { hLater = false; syncHist(); } return; }
   const now = hDepth(); hPop = true;
   try {
     for (let i = 0; i < 4 && hWant() > now; i++) {
-      if (dlgOpen()) closeDlg(); else if (sel != null) { sel = null; render(); } else if (snapName === 'full') snap('half'); else break;
+      if (dlgOpen()) closeDlg(); else if (sel != null) { sel = null; render(); focusBack(); } else if (snapName === 'full') snap('half'); else break;
     }
     // Forward to a card entry: open that card again
-    if (hWant() < now && !dlgOpen() && sel == null && history.state && history.state.u) { const p = byU(history.state.u); if (p) detail(p); }
+    if (hWant() < now && !dlgOpen() && sel == null && history.state && history.state.u && history.state.h === HID) { const p = byU(history.state.u); if (p) detail(p); }
   } finally { hPop = false; }
   syncHist();
 });
@@ -881,12 +927,29 @@ function clearAll() { Object.assign(S, DEF); S.q = ''; S.when = null; S.fri = fa
 const dayName = (d, base = IL()) => { const a = new Date(base); a.setHours(0,0,0,0); const b = new Date(d); b.setHours(0,0,0,0); const k = Math.round((b - a) / 864e5); return k === 0 ? 'היום' : k === 1 ? 'מחר' : (d.getDay() === 5 ? 'שישי' : 'יום ' + DAYS[d.getDay()]); };
 function whenLabel() { if (!S.when) return ''; const d = new Date(S.when); return dayName(d) + ' ' + hhmm(d.getHours()*60 + d.getMinutes()); }
 function nextDay(dow, h, m) { const d = IL(); d.setSeconds(0, 0); const add = (dow - d.getDay() + 7) % 7; d.setDate(d.getDate() + add); d.setHours(h, m); if (d < IL()) d.setDate(d.getDate() + 7); return d; }
+// Day + hour follow the same rules as the quick picks (QA2-3): no hour that has passed, nothing on Friday from 14:00,
+// no Shabbat. Saturday is offered only as today: the app is not used on Shabbat, so open on a Saturday means Motzei
+// Shabbat, and its coming hours are offered under "היום" (QA2-6). A day with no hour left is not offered.
+const WHEN_FROM = 6 * 60, WHEN_TO = 23 * 60 + 30, FRI_LAST = 14 * 60;
+function whenTimes(dayTs) {
+  const d = new Date(dayTs), now = IL(), today = new Date(now); today.setHours(0, 0, 0, 0);
+  const isToday = +d === +today, nowM = now.getHours() * 60 + now.getMinutes(), out = [];
+  if (d.getDay() === 6 && !isToday) return out;
+  for (let m = WHEN_FROM; m <= WHEN_TO; m += 30) {
+    if (isToday && m < nowM) continue;
+    if (d.getDay() === 5 && m >= FRI_LAST) continue;
+    out.push(m);
+  }
+  return out;
+}
 function whenDlg() {
   const base = S.when ? new Date(S.when) : IL();
-  const days = []; for (let i = 0, d = IL(); days.length < 6; i++) { const x = IL(); x.setDate(d.getDate() + i); if (x.getDay() !== 6) days.push(x); }
+  const days = []; for (let i = 0; days.length < 6 && i < 8; i++) { const x = IL(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + i); if (whenTimes(+x).length) days.push(x); }
   const curDay = new Date(base); curDay.setHours(0,0,0,0);
-  const times = []; for (let m = 6*60; m <= 23*60 + 30; m += 30) times.push(m);
+  // the day "הצגה" uses is always marked: the chosen day, else the first day offered (today when it has hours left)
+  let day = days.some(d => +d === +curDay) ? +curDay : days.length ? +days[0] : +curDay;
   const bm = base.getHours()*60 + (base.getMinutes() < 30 ? 0 : 30);
+  const timeOpts = (dts, want) => { const ts = whenTimes(dts), pick = ts.includes(want) ? want : ts[0]; return ts.map(m => `<option value="${m}"${m === pick ? ' selected' : ''}>${hhmm(m)}</option>`).join(''); };
   const o = (on, attr, label) => `<button class="opt${on?' on':''}" ${attr}>${label}</button>`;
   // quick picks only in the coming days and never in the past (bug 4.10); no Friday-evening pick (Shabbat)
   const now = IL(), at = (dw, h) => { const d = dw === 'today' ? IL() : nextDay(dw, h, 0); d.setHours(h, 0, 0, 0); return d; };
@@ -895,16 +958,16 @@ function whenDlg() {
     .map(x => o(false, `data-at="${+x.d}"`, `${dayName(x.d) === 'היום' ? 'היום' : dayName(x.d) === 'מחר' ? 'מחר' : 'שישי'} ${x.part} ${hhmm(x.d.getHours() * 60)}`)).join('');
   openDlg(`<h3 tabindex="-1">מתי רוצים להגיע?</h3>
     <div class="fg"><h4>מהיר</h4><div class="opts">${o(!S.when,'data-now="1"','עכשיו')}${pres}</div></div>
-    <div class="fg"><h4>יום</h4><div class="opts">${days.map(d => { const k = new Date(d); k.setHours(0,0,0,0); return o(S.when && +k === +curDay, `data-day="${+k}"`, dayName(d)); }).join('')}</div></div>
-    <div class="fg"><h4>שעה</h4><select class="sel" id="wTime">${times.map(m => `<option value="${m}"${m === bm ? ' selected' : ''}>${hhmm(m)}</option>`).join('')}</select></div>
-    <div class="dbar"><button class="btn ghost" id="wNow">עכשיו</button><button class="btn pri" id="wOk">הצגה</button></div>`);
-  let day = +curDay;
+    ${days.length ? `<div class="fg"><h4>יום</h4><div class="opts">${days.map(d => `<button class="opt${+d === day ? ' on' : ''}" data-day="${+d}" aria-pressed="${+d === day}">${dayName(d)}</button>`).join('')}</div></div>
+    <div class="fg"><h4>שעה</h4><select class="sel" id="wTime">${timeOpts(day, bm)}</select></div>` : ''}
+    <div class="dbar"><button class="btn ghost" id="wNow">עכשיו</button>${days.length ? '<button class="btn pri" id="wOk">הצגה</button>' : ''}</div>`);
   const apply = () => { const m = +$('wTime').value; const d = new Date(day); d.setHours(Math.floor(m/60), m % 60, 0, 0); S.when = +d; };
   $('dlg').onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.now || b.id === 'wNow') { S.when = null; closeDlg(); sel = null; shown = 40; render(); return; }
     if (b.dataset.at) { S.when = +b.dataset.at; S.open = true; closeDlg(); sel = null; shown = 40; render(); return; }
-    if (b.dataset.day) { day = +b.dataset.day; document.querySelectorAll('#dlg [data-day]').forEach(x => x.classList.toggle('on', x === b)); return; }
+    if (b.dataset.day) { day = +b.dataset.day; document.querySelectorAll('#dlg [data-day]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+      const w = $('wTime'); w.innerHTML = timeOpts(day, +w.value); return; }
     if (b.id === 'wOk') { apply(); S.open = true; closeDlg(); sel = null; shown = 40; render(); }
   };
 }
@@ -1037,7 +1100,7 @@ migrateIds();
 // the address is cleaned before any history entry is added, so Back from a shared card returns to the list, not to ?p=
 if (QS.toString() || hDepth()) history.replaceState(null, '', location.pathname);
 render(); snap('peek'); initMap();
-{ const p = QS.get('p') && byU(QS.get('p')); if (p) { detail(p); snap('half'); const ll = LLof(p); if (ll) setTimeout(() => panTo(ll), 600); } }
+{ const p = QS.get('p') && byU(QS.get('p')); if (p) { detail(p, false, true); snap('half'); const ll = LLof(p); if (ll) setTimeout(() => panTo(ll), 600); } }
 if (QS.get('near') === '1') gps();
 if (navigator.permissions) navigator.permissions.query({ name:'geolocation' }).then(r => { if (r.state === 'granted') gps(); }).catch(() => {});
 })();
