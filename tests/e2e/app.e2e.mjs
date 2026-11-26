@@ -186,66 +186,153 @@ describe('chips', () => {
   });
 });
 
-// ================= known bugs (docs/qa/stage1.md) – reported, not failing the run until fixed =================
-describe('known bugs', () => {
-  test('QA1-1 phone, sheet at full height: title and "חזרה לרשימה" are under the search/chips bar', { todo: 'QA1-1 (map-ux/design-system)' }, async () => {
+// ================= fixed stage-1 bugs (docs/qa/stage1.md, REVIEW-stage1) – regression guards (S1-9) =================
+describe('stage 1 fixes', () => {
+  // the sheet title / card back button must be what a finger hits at full height, on a common and a small phone
+  for (const vp of [PHONE, { width: 360, height: 640 }]) {
+    test(`QA1-1 ${vp.width}x${vp.height}, sheet at full height: title and "חזרה לרשימה" are not under the search/chips bar`, async () => {
+      const r = await go('/', { viewport: vp, mobile: true, time: TUE });
+      const { page } = r;
+      const hitOk = sel => page.evaluate(s => { const e = document.querySelector(s), t = e.getBoundingClientRect(); const h = document.elementFromPoint(t.left + t.width / 2, t.top + t.height / 2); return { ok: !!h && (h === e || e.contains(h)), top: Math.round(t.top), bar: Math.round(document.querySelector('.topbar').getBoundingClientRect().bottom) }; }, sel);
+      await page.evaluate(() => { document.getElementById('sbody').scrollTop = 10; }); await page.waitForTimeout(500); // the app snaps to full
+      const t = await hitOk('#sTitle'); assert.ok(t.ok && t.top >= t.bar, 'title ' + JSON.stringify(t));
+      await page.click('#sbody .item'); await page.waitForSelector('.det');
+      await page.evaluate(() => { document.getElementById('sbody').scrollTop = 10; }); await page.waitForTimeout(500);
+      const b = await hitOk('#back'); assert.ok(b.ok && b.top >= b.bar, 'back ' + JSON.stringify(b));
+      await page.click('#back'); await page.waitForSelector('#sbody .item');
+      await done(r);
+    });
+  }
+  test('QA1-1 offline bar makes the top bar taller: full sheet still starts below it', async () => {
     const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
     const { page } = r;
-    await page.evaluate(() => { document.getElementById('sbody').scrollTop = 10; }); await page.waitForTimeout(500); // the app snaps to full
-    const covered = await page.evaluate(() => { const t = document.getElementById('sTitle').getBoundingClientRect(); const h = document.elementFromPoint(t.left + t.width / 2, t.top + t.height / 2); return !h || !h.closest('#sheet'); });
-    try { assert.equal(covered, false, 'sheet title is covered by the top bar'); } finally { await r.ctx.close(); }
+    await r.ctx.setOffline(true); await page.waitForSelector('#offl:not([hidden])');
+    await page.evaluate(() => { document.getElementById('sbody').scrollTop = 10; }); await page.waitForTimeout(500);
+    const g = await page.evaluate(() => ({ sheet: document.getElementById('sheet').getBoundingClientRect().top, bar: document.querySelector('.topbar').getBoundingClientRect().bottom }));
+    assert.ok(g.sheet >= g.bar, JSON.stringify(g));
+    await r.ctx.setOffline(false);
+    await done(r, { allowNetErrors: true });
   });
-  test('QA1-2 filter sheet: focus is lost after a choice (Esc/הצגה do not return to the filter button)', { todo: 'QA1-2 (map-ux)' }, async () => {
+  test('QA1-2 filter sheet: focus returns to the filter button after a choice (Esc and "הצגה")', async () => {
     const r = await go('/', { viewport: DESK, time: TUE });
     const { page } = r;
     await page.focus('#fBtn'); await page.keyboard.press('Enter'); await page.waitForSelector('#dlg.on');
-    await page.focus('#dlg [data-hc="chabad"]'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
-    const id = await page.evaluate(() => document.activeElement.id);
-    try { assert.equal(id, 'fBtn'); } finally { await r.ctx.close(); }
+    await page.focus('#dlg [data-hc="chabad"]'); await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.hc), 'chabad', 'focus stays on the chosen option after the re-render');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'fBtn', 'after Esc');
+    await page.keyboard.press('Enter'); await page.waitForSelector('#dlg.on');
+    await page.focus('#dlg [data-hc="chabad"]'); await page.keyboard.press('Enter');
+    await page.focus('#fOk'); await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'fBtn', 'after "הצגה"');
+    await done(r);
   });
-  test('QA1-3 closed sheet keeps focusable buttons; open sheet does not keep focus inside (aria-modal)', { todo: 'QA1-3 (map-ux)' }, async () => {
+  test('QA1-3 open sheet keeps focus inside (aria-modal); closed sheet is inert', async () => {
     const r = await go('/', { viewport: DESK, time: TUE });
     const { page } = r;
+    assert.equal(await page.evaluate(() => document.getElementById('dlg').inert), true, 'inert before the first opening');
     await page.focus('#fBtn'); await page.keyboard.press('Enter'); await page.waitForSelector('#dlg.on');
     await page.keyboard.press('Shift+Tab'); // from the heading, backwards
-    const escaped = await page.evaluate(() => !document.activeElement.closest('#dlg'));
+    assert.ok(await page.evaluate(() => !!document.activeElement.closest('#dlg')), 'Shift+Tab stays in the dialog');
+    for (let i = 0; i < 40; i++) await page.keyboard.press('Tab');
+    assert.ok(await page.evaluate(() => !!document.activeElement.closest('#dlg')), 'Tab cycles inside the dialog');
     await page.keyboard.press('Escape');
     const hidden = await page.evaluate(() => [...document.querySelectorAll('#dlg button, #dlg select')].filter(e => !e.disabled && !e.closest('[inert]') && getComputedStyle(e).visibility !== 'hidden').length);
-    try { assert.deepEqual({ escaped, hidden }, { escaped: false, hidden: 0 }); } finally { await r.ctx.close(); }
+    assert.equal(hidden, 0, 'no focusable controls in the closed dialog');
+    await page.keyboard.press('Tab');
+    assert.ok(await page.evaluate(() => !document.activeElement.closest('#dlg')), 'Tab after closing does not land in the dialog');
+    await done(r);
   });
-  test('QA1-5 closing a card right after the map loads throws "Cannot read properties of undefined (reading \'g\')"', { todo: 'QA1-5 (map-ux)', skip: !vendorPresent() && 'needs the GL map' }, async () => {
+  test('QA1-4 every dialog is named by its own heading', async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    const { page } = r;
+    const name = () => page.evaluate(() => { const d = document.getElementById('dlg'); return d.getAttribute('aria-label') || (document.getElementById(d.getAttribute('aria-labelledby')) || {}).textContent; });
+    for (const [open, exp] of [['#fBtn', 'סינון'], ['#cWhen', 'מתי רוצים להגיע?'], ['#ctaCity', 'באיזה ישוב?']]) {
+      await page.click(open); await page.waitForSelector('#dlg.on');
+      assert.equal(await name(), exp);
+      await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.getElementById('dlg').classList.contains('on'));
+    }
+    await done(r);
+  });
+  test('QA1-5 closing a card right after the map loads throws no error', { skip: !vendorPresent() && 'needs the GL map' }, async () => {
     const r = await go('/?p=347ac19', { viewport: PHONE, time: TUE });
     const { page } = r;
     // the first marker is drawn inside the map 'load' handler, which also schedules panTo(PLACES[sel]) 50 ms later
     await page.evaluate(() => new Promise(res => { const o = new MutationObserver(() => { if (document.querySelector('#map .maplibregl-marker')) { o.disconnect(); document.getElementById('back').click(); res(); } }); o.observe(document.getElementById('map'), { childList: true, subtree: true }); }));
     await page.waitForTimeout(300);
-    const errs = r.log.errors.slice();
-    try { assert.deepEqual(errs, []); } finally { await r.ctx.close(); }
+    await done(r);
   });
-  test('QA1-4 every dialog is announced as "סינון" (time and town dialogs too)', { todo: 'QA1-4 (map-ux)' }, async () => {
-    const r = await go('/', { viewport: PHONE, time: TUE });
-    await r.page.click('#cWhen'); await r.page.waitForSelector('#dlg.on');
-    const lbl = await r.page.getAttribute('#dlg', 'aria-label');
-    try { assert.notEqual(lbl, 'סינון'); } finally { await r.ctx.close(); }
-  });
-  test('QA1-6 footer e-mail link is 43.2px tall (below the 44px tap target)', { todo: 'QA1-6 (design-system)' }, async () => {
+  test('QA1-6 footer e-mail link is at least 44px tall', async () => {
     const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
     const h = await r.page.evaluate(() => document.querySelector('.foot a').getBoundingClientRect().height);
-    try { assert.ok(h >= 44, 'height ' + h); } finally { await r.ctx.close(); }
+    assert.ok(h >= 44, 'height ' + h);
+    await done(r);
   });
-  test('REVIEW-2 list row cuts long kashrut text with an ellipsis (rule 5)', { todo: 'REVIEW-stage1 #2 (design-system)' }, async () => {
+  for (const vp of [PHONE, DESK]) {
+    test(`QA1-7 ${vp.width}px, country zoom: town clusters do not overlap`, { skip: !vendorPresent() && 'needs the GL map' }, async () => {
+      const r = await go('/', { viewport: vp, mobile: vp === PHONE, time: TUE });
+      await mapReady(r.page); await r.page.waitForTimeout(300);
+      const res = await r.page.evaluate(() => {
+        const bs = [...document.querySelectorAll('#map .cl')].map(e => ({ r: e.getBoundingClientRect(), n: +e.textContent }));
+        const hits = [];
+        for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) { const a = bs[i].r, b = bs[j].r; if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) hits.push([bs[i].n, bs[j].n]); }
+        return { n: bs.length, total: bs.reduce((s, b) => s + b.n, 0), hits };
+      });
+      assert.ok(res.n > 3, 'clusters drawn: ' + res.n);
+      assert.deepEqual(res.hits, [], 'overlapping clusters');
+      assert.equal(res.total, DATA.filter(p => p.k.startsWith('מסעדה') && CITIES[p.c] && L.statusAt(p, wall(TUE), false).s !== 'x').length, 'merged clusters keep every place');
+      await done(r);
+    });
+  }
+  test('REVIEW-2 list rows show the kashrut text in full (wraps, never cut)', async () => {
     const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
     await halfSheet(r.page); await r.page.click('#more'); await r.page.click('#more');
-    const cut = await r.page.$$eval('#sbody .item .kh', a => a.filter(k => k.scrollWidth > k.clientWidth + 1).map(k => k.textContent));
-    try { assert.deepEqual(cut, []); } finally { await r.ctx.close(); }
+    const cut = await r.page.$$eval('#sbody .item .kh', a => a.filter(k => k.scrollWidth > k.clientWidth + 1 || getComputedStyle(k).textOverflow === 'ellipsis').map(k => k.textContent));
+    assert.deepEqual(cut, []);
+    await done(r);
   });
-  test('REVIEW-3 SVG fallback map stays light in dark mode', { todo: 'REVIEW-stage1 #3 (map-ux)' }, async () => {
+  test('REVIEW-3 SVG fallback map follows the dark tokens (and switches live)', async () => {
     const r = await go('/', { viewport: PHONE, dark: true, time: TUE });
     await r.ctx.route('**/vendor/maplibre-gl.mjs', x => x.fulfill({ status: 404, body: '' }));
     await r.page.reload(); await r.page.waitForSelector('#sbody .item');
     await r.page.waitForFunction(() => !document.getElementById('svgmap').hasAttribute('hidden'), null, { timeout: 15000 });
-    const fill = await r.page.evaluate(() => document.querySelector('#svgmap polygon').getAttribute('fill'));
-    try { assert.notEqual(fill, '#f7f7f5'); } finally { await r.ctx.close(); }
+    const col = () => r.page.evaluate(() => { const t = n => { const d = document.createElement('div'); d.style.color = `var(${n})`; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; };
+      return { land: getComputedStyle(document.querySelector('#svgmap polygon')).fill, mapBg: t('--map-bg'), dot: getComputedStyle(document.querySelector('#svgmap circle')).fill, brand: t('--brand'), raw: document.getElementById('svgmap').innerHTML.match(/#[0-9a-f]{3,6}\b|Assistant/gi) }; });
+    const d = await col();
+    assert.equal(d.land, d.mapBg); assert.equal(d.dot, d.brand); assert.equal(d.raw, null, 'no hard-coded colours or old font');
+    await r.page.emulateMedia({ colorScheme: 'light' });
+    const l = await col();
+    assert.equal(l.land, l.mapBg); assert.notEqual(l.land, d.land, 'light differs from dark');
+    await done(r, { allowNetErrors: true });
+  });
+  test('REVIEW-3 GL map: style switches live with the system colour scheme', { skip: !vendorPresent() && 'needs the GL map' }, async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    await mapReady(r.page);
+    assert.ok(r.log.req.some(u => u.endsWith('/map-style/light.json')));
+    assert.ok(!r.log.req.some(u => u.endsWith('/map-style/dark.json')));
+    await r.page.emulateMedia({ colorScheme: 'dark' });
+    await r.page.waitForFunction(() => document.querySelector('#map .maplibregl-marker'), null, { timeout: 5000 });
+    await r.page.waitForTimeout(800);
+    assert.ok(r.log.req.some(u => u.endsWith('/map-style/dark.json')), 'dark style requested after the switch');
+    await done(r);
+  });
+  test('theme-color: light and dark values by media query; no inline Assistant font', async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    const m = await r.page.$$eval('meta[name="theme-color"]', a => a.map(x => [x.getAttribute('media'), x.content]));
+    assert.deepEqual(m, [['(prefers-color-scheme: light)', '#F6F7F9'], ['(prefers-color-scheme: dark)', '#0F1114']]);
+    await r.page.click('#sbody .item'); await r.page.waitForSelector('.det');
+    assert.equal(await r.page.$$eval('[style*="Assistant"]', a => a.length), 0);
+    await done(r);
+  });
+  test('list row second line is "type · address"', async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    await typeQ(r.page, 'כמיסה');
+    const id = await r.page.$eval('#sbody .item', e => +e.dataset.id);
+    const l2 = await r.page.$eval('#sbody .item .l2', e => e.textContent);
+    const nm = await r.page.$eval('#sbody .item .nm', e => e.textContent);
+    const place = DATA.find(x => x.n === nm);
+    assert.equal(l2, [place.f, [place.s, place.c].filter(Boolean).join(', ')].filter(Boolean).join(' · '), 'row ' + id);
+    await done(r);
   });
 });
 
@@ -290,7 +377,7 @@ describe('town and near', () => {
 describe('card, favourites, recent', () => {
   test('list -> card -> back, Esc closes, favourite and recent persist', async () => {
     const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
-    const { page } = r; await mapReady(page); // QA1-5
+    const { page } = r; await mapReady(page);
     await typeQ(page, 'כמיסה');
     const nm = (await names(page))[0];
     await page.click('#sbody .item');
@@ -360,7 +447,7 @@ describe('hours in the UI', () => {
   });
   test('Google-flagged "24h" places at 23:30: real close time + doubt note in list and card', async () => {
     const r = await go('/?p=347ac19', { viewport: PHONE, time: TUE_NIGHT });
-    await mapReady(r.page); await r.page.waitForTimeout(200); // see QA1-5: 'back' right after the map loads throws
+    await mapReady(r.page); await r.page.waitForTimeout(200); 
     assert.equal(await r.page.textContent('.det .row [class^="st-"]'), 'פתוח עד יום חמישי בחצות');
     assert.match(await r.page.textContent('.det .dl'), /נראה שהמידע אינו מדוייק/);
     await r.page.click('#back'); await typeQ(r.page, 'חלב חיטים מירון');
@@ -379,7 +466,7 @@ describe('hours in the UI', () => {
   });
   test('no "(מנהג חב״ד)" anywhere; Friday candle-lighting line present', async () => {
     const r = await go('/?p=565847f', { viewport: PHONE, time: FRI });
-    await mapReady(r.page); await r.page.waitForTimeout(200); // QA1-5
+    await mapReady(r.page); await r.page.waitForTimeout(200);
     let txt = await r.page.textContent('body');
     assert.match(txt, /הדלקת נרות בדלתון ביום שישי: \d\d:\d\d/);
     await r.page.click('#back'); await r.page.click('#ctaCity'); await r.page.selectOption('#cSel', 'ירושלים'); await r.page.click('#cOk');
@@ -509,7 +596,7 @@ describe('layout and accessibility', () => {
   for (const [label, o] of [['phone light', { viewport: PHONE, mobile: true }], ['phone dark', { viewport: PHONE, mobile: true, dark: true }], ['desktop', { viewport: DESK }]]) {
     test('no horizontal overflow – ' + label + ' (list, card, filter sheet, Friday)', async () => {
       const r = await go('/', { ...o, time: FRI });
-      const { page } = r; const found = []; await mapReady(page); // QA1-5
+      const { page } = r; const found = []; await mapReady(page);
       if (o.mobile) await halfSheet(page);
       found.push(...(await page.evaluate(overflowProbe)).map(x => 'list: ' + x));
       await page.click('#cFri'); found.push(...(await page.evaluate(overflowProbe)).map(x => 'friday: ' + x)); await page.click('#cFri');
