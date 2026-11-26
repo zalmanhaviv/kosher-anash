@@ -1,5 +1,5 @@
-const V='v8',SHELL='shell-'+V,RT='rt-'+V,MAX=900;
-self.addEventListener('install',e=>{e.waitUntil(caches.open(SHELL).then(c=>c.addAll(['/','/manifest.webmanifest','/icon-192.png','/vendor/fonts.css'])).catch(()=>{}));self.skipWaiting();});
+const V='v9',SHELL='shell-'+V,RT='rt-'+V,MAX=900;
+self.addEventListener('install',e=>{e.waitUntil(caches.open(SHELL).then(c=>c.addAll(['/','/manifest.webmanifest','/icon-192.png','/vendor/fonts.css','/fonts/rubik.woff2','/map-style/light.json','/map-style/dark.json'])).catch(()=>{}));self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==SHELL&&k!==RT).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 async function trim(){const c=await caches.open(RT);const k=await c.keys();for(const r of k.slice(0,Math.max(0,k.length-MAX)))await c.delete(r);}
 async function cacheFirst(r,name,lim){const c=await caches.open(name);const hit=await c.match(r,{ignoreSearch:true});if(hit)return hit;try{const res=await fetch(r);if(res.ok){c.put(r,res.clone());if(lim)trim();}return res;}catch(e){return Response.error();}}
