@@ -367,14 +367,15 @@ const NEAR_KM = 12;
 const REF = () => ME || (S.city ? cityLL(S.city) : null);
 const distOf = p => { const ll = LLof(p), r = REF(); return r && ll ? km(r, ll) : null; };
 const kmTxt = d => (d < 10 ? d.toFixed(1) : Math.round(d)) + ' ק״מ';
-// Distance wording (P1-9, DECISIONS 26.11):
+// Distance wording (P1-9; DECISIONS 26.11 "מקום בלי מיקום מדויק" and "N ק״מ ממרכז <ישוב>"):
 // - from the user's position (GPS): exact places – walking minutes up to 1.5 km, then km; street-level places –
 //   'בערך' + km; town-only places – 'ב<town>' when close, else 'בערך' + whole km (town level).
 // - from a chosen town (no GPS) the reference is the town centre, not the user: no walking time ever; places in the
-//   town show no distance (their section says 'ב<town>'), places around it show whole km from the centre.
-function distTxt(p, d) {
+//   town show no distance (their section says 'ב<town>'), places around it show whole km from the centre –
+//   'N ק״מ ממרכז <town>' unless `short` (only under the heading 'בסביבה · המרחק ממרכז <town>') (review S2 #5).
+function distTxt(p, d, short) {
   if (d == null) return '';
-  if (!ME) return p.c === S.city ? '' : Math.max(1, Math.round(d)) + ' ק״מ';
+  if (!ME) return p.c === S.city ? '' : Math.max(1, Math.round(d)) + ' ק״מ' + (short ? '' : ' ממרכז ' + S.city);
   if (!hasLoc(p)) return d < 4 ? 'ב' + p.c : 'בערך ' + Math.max(1, Math.round(d)) + ' ק״מ';
   if (!exact(p)) return 'בערך ' + kmTxt(Math.max(d, 0.1));
   if (d < 1.5) { const m = Math.max(1, Math.round(d * 1.3 / 5 * 60)); return m + ' דק׳ הליכה'; }
@@ -425,8 +426,8 @@ async function doInstall() { if (INST) { INST.prompt(); try { await INST.userCho
 function iosGuide() {
   const i = d => `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;margin-inline-end:8px">${d}</svg>`;
   openDlg(`<h3>הוספה למסך הבית</h3>
-    <div class="fg"><h4>1. בספארי, לוחצים על כפתור השיתוף</h4><div>${i('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>')}בתחתית המסך (או למעלה באייפד)</div></div>
-    <div class="fg"><h4>2. בוחרים "הוספה למסך הבית"</h4><div>${i('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>')}אם לא רואים, גוללים למטה ברשימה</div></div>
+    <div class="fg"><h4>1. בספארי, לוחצים על כפתור השיתוף</h4><div>${i('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>')}בסרגל של ספארי, בתחתית המסך או למעלה. אם הכפתור לא מופיע, לוחצים קודם על ⋯</div></div>
+    <div class="fg"><h4>2. בוחרים "הוספה למסך הבית"</h4><div>${i('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>')}אם לא רואים, גוללים למטה ברשימה או פותחים את כל האפשרויות</div></div>
     <div class="fg"><h4>3. לוחצים "הוספה"</h4><div>האפליקציה תופיע במסך הבית ותיפתח מהר, גם כשהקליטה חלשה.</div></div>
     <div class="dbar"><button class="btn pri" id="iosOk">הבנתי</button></div>`);
   $('dlg').onclick = e => { if (e.target.id === 'iosOk') closeDlg(); };
@@ -505,7 +506,7 @@ function results(o = {}) {
 }
 
 // ---------- list render ----------
-function itemHTML({p, st, d}) {
+function itemHTML({p, st, d}, short) {
   return `<button class="item" data-id="${p.id}" data-u="${esc(p.u)}">
     <span class="pinx b-${p.hc}">${ico(p)}<i aria-hidden="true">${HL[p.hc]}</i></span>
     <span class="bd">
@@ -514,11 +515,11 @@ function itemHTML({p, st, d}) {
       <div class="l3"><span class="kh k-${p.hc}">${esc(shortH(p))}</span>${p.t.length ? `<span style="color:var(--sub)">${esc(p.t.join('/'))}</span>` : ''}${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}</div>
       ${doubtful(p) ? `<div class="src">${DOUBT}</div>` : ''}
     </span>
-    <span class="ds">${esc(distTxt(p, d))}</span>
+    <span class="ds">${esc(distTxt(p, d, short === true)).replace(' ממרכז ', '<br>ממרכז ')}</span>
   </button>`;
 }
 function listHTML(slice) {
-  if (S.city && !ME && S.sort !== 'name' && !S.fri) { const a = slice.filter(r => r.p.c === S.city), b = slice.filter(r => r.p.c !== S.city); return (a.length ? `<div class="sec-h">ב${esc(S.city)}</div>` + a.map(itemHTML).join('') : '') + (b.length ? `<div class="sec-h">בסביבה · המרחק ממרכז ${esc(S.city)}</div>` + b.map(itemHTML).join('') : ''); }
+  if (S.city && !ME && S.sort !== 'name' && !S.fri) { const a = slice.filter(r => r.p.c === S.city), b = slice.filter(r => r.p.c !== S.city); return (a.length ? `<div class="sec-h">ב${esc(S.city)}</div>` + a.map(itemHTML).join('') : '') + (b.length ? `<div class="sec-h">בסביבה · המרחק ממרכז ${esc(S.city)}</div>` + b.map(r => itemHTML(r, true)).join('') : ''); }
   if (!ME || S.sort === 'name' || S.fri) return slice.map(itemHTML).join('');
   const bands = [['במרחק הליכה', r => exact(r.p) && r.d <= 1.5], ['עד 10 ק״מ', r => r.d != null && r.d <= 10], ['רחוק יותר', () => true]];
   const used = new Set(); let h = '';
@@ -551,13 +552,13 @@ function render() {
   if (S.fri) top += `<div class="note">מקומות שפתוחים ביום שישי לפי השעות שפורסמו, מהנסגר הכי מאוחר. בסוף: מקומות לאוכל לשבת שאין עליהם מידע על שעות.</div>`;
   if (showInstallCard()) top += `<div class="instc"><p><b>להוסיף למסך הבית?</b><br>נפתח מהר, גם כשהקליטה חלשה.</p><button class="btn pri" id="instY">הוספה</button><button class="btn ghost" id="instN" aria-label="לא עכשיו">לא</button></div>`;
   if (!S.q && !S.fri) top += personalHTML(now);
-  if (FUZZY && rows.length) top += `<div class="note">לא נמצאה התאמה מדויקת ל״${esc(S.q.trim())}״. מוצגים מקומות עם שם דומה.</div>`;
+  if (FUZZY && rows.length) top += `<div class="note">לא נמצאה התאמה מדוייקת ל״${esc(S.q.trim())}״. מוצגות תוצאות דומות.</div>`;
   if (S.open) top += `<div class="note">מוצגים מקומות ש${S.when ? 'פתוחים בזמן שבחרתם (' + wl + ')' : 'פתוחים עכשיו'} לפי שעות הפעילות ברשת. בסוף הרשימה גם מקומות שאין עליהם מידע על שעות הפעילות.</div>`;
   const slice = rows.slice(0, shown);
   $('sbody').innerHTML = top + (slice.length ? listHTML(slice) : emptyHTML())
     + (rows.length > shown ? `<button class="more" id="more">עוד ${nPl(Math.min(40, rows.length - shown))}</button>` : '')
     + ((INST || (IOS && !STANDALONE)) ? '<button class="more" id="inst">הוספה למסך הבית</button>' : '')
-    + `<div class="foot">המאגר עודכן לאחרונה ב־${esc(fmtDate(DATA_UPDATED))}. המקומות והכשרויות מתוך מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה. יש לבדוק את תעודת הכשרות במקום. שעות, טלפונים ומיקומים: Google Maps ו-OpenStreetMap. כדאי לוודא שעות לפני שיוצאים. עדכונים: <a href="mailto:chabadfood770@gmail.com">chabadfood770@gmail.com</a><br>פרטיות: המיקום שלך נשאר במכשיר ולא נשמר. אין מעקב ואין פרסומות. המפה נטענת מ-OpenFreeMap והנתונים מ-GitHub.</div>`;
+    + `<div class="foot">המאגר עודכן לאחרונה ב־${esc(fmtDate(DATA_UPDATED))}. המקומות והכשרויות מתוך מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה. יש לבדוק את תעודת הכשרות במקום. שעות, טלפונים ומיקומים: Google Maps ו-OpenStreetMap. כדאי לוודא שעות לפני שיוצאים. עדכונים: <a href="mailto:chabadfood770@gmail.com">chabadfood770@gmail.com</a><br>פרטיות: המיקום שלך משמש רק במכשיר, לחישוב המרחק. הוא לא נשלח ולא נשמר. אריחי המפה של האזור שבמסך נטענים מ-OpenFreeMap, והנתונים מ-GitHub. אין מעקב ואין פרסומות.</div>`;
   if ($('ctaGps')) $('ctaGps').onclick = gps;
   if ($('instY')) $('instY').onclick = doInstall;
   if ($('instN')) $('instN').onclick = () => { LS.set('kl3_instx', 1); render(); };
@@ -577,13 +578,13 @@ function emptyHTML() {
     S.open && [{ open: false }, S.when ? 'גם מקומות שסגורים בזמן הזה' : 'גם מקומות שסגורים עכשיו'],
     S.fri && [{ fri: false }, 'כל המקומות, לא רק בשישי'],
     S.food && [{ food: '' }, 'כל סוגי האוכל'],
-    S.t.length && [{ t: [] }, 'בשרי, חלבי ופרווה'],
+    S.t.length && [{ t: [] }, 'כל הסוגים (בשרי, חלבי ופרווה)'],
     S.hc.length && [{ hc: [] }, 'כל הכשרויות'],
     S.kind && [{ kind: '', food: '' }, 'כל סוגי המקומות (גם קייטרינג, אולמות ומלונות)'],
   ].filter(Boolean).map(([patch, label]) => ({ patch, label, n: probe(patch) })).filter(x => x.n > 0).slice(0, 3);
   WIDEN = opts;
   const what = S.q.trim() ? `לא נמצאו מקומות ל״${esc(S.q.trim())}״` : 'לא נמצאו מקומות';
-  return `<div class="empty"><b>${what}</b>${opts.length ? 'אפשר להרחיב:' + opts.map((x, i) => `<button class="btn ghost" data-widen="${i}">${esc(x.label)} · ${x.n}</button>`).join('') : 'נסו מילה אחרת או פחות סינונים.'}<button class="btn ghost" id="clr">ניקוי סינון</button></div>`;
+  return `<div class="empty"><b>${what}</b>${opts.length ? 'אפשר להרחיב:' + opts.map((x, i) => `<button class="btn ghost" data-widen="${i}">${esc(x.label)} · ${x.n}</button>`).join('') : (S.q.trim() ? 'נסו מילה אחרת או פחות סינונים.' : 'נסו פחות סינונים.')}<button class="btn ghost" id="clr">ניקוי סינון</button></div>`;
 }
 
 // ---------- detail ----------
@@ -607,7 +608,7 @@ function detail(p, keepScroll) {
     <button class="back" id="back">${IC.back}חזרה לרשימה</button>
     <div class="hd"><h3>${esc(p.n)}</h3><button class="fav" id="fav" aria-pressed="${isFav(p)}" aria-label="שמירה ברשימה שלי">${starSVG(isFav(p))}</button></div>
     <div class="addr">${p.s ? esc(p.s + ', ' + p.c) : esc(p.c) + ' · אין כתובת במאגר'}</div>
-    ${exact(p) ? '' : `<div class="src">${hasLoc(p) ? 'המיקום במפה משוער, ברמת הרחוב.' : 'המיקום במפה משוער, לפי מרכז הישוב.'}</div>`}
+    ${exact(p) ? '' : `<div class="src">${hasLoc(p) ? 'המיקום במפה משוער (ברמת הרחוב).' : 'המיקום במפה משוער (לפי מרכז הישוב).'}</div>`}
     <div class="row">${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}${distTxt(p, d) ? `<span>${esc(distTxt(p, d))}</span>` : ''}<span style="color:var(--sub)">${esc(p.f + (p.t.length ? ', ' + p.t.join('/') : ''))}</span></div>
     <div class="acts">
       <a class="pri" href="${waze}" target="_blank" rel="noopener">${IC.nav}ניווט</a>
@@ -747,9 +748,9 @@ function paint() {
   const townOnly = {};
   for (const r of list) if (!hasLoc(r.p) && r.p.id !== sel) (townOnly[r.p.c] = townOnly[r.p.c] || []).push(r);
   for (const c in townOnly) { const n = townOnly[c].length, ll = cityLL(c); if (n < 2 || !ll || !inView(ll)) continue;
-    putMk('ap:' + c, `<div class="mk ap" style="color:var(--brand)" title="${n} מקומות בלי מיקום מדויק ב${esc(c)}">${n}</div><span class="mkl">${esc(nPl(n) + ' ב' + c)}</span>`, '', [ll.lng, ll.lat], () => {
+    putMk('ap:' + c, `<div class="mk ap" style="color:var(--brand)" title="${n} מקומות בלי מיקום מדוייק ב${esc(c)}">${n}</div><span class="mkl">${esc(nPl(n) + ' ב' + c)}</span>`, '', [ll.lng, ll.lat], () => {
       if (!ME && S.city !== c) { S.city = c; sel = null; shown = 40; render(); } // near-me stays near-me
-      snap('half'); toast('המקומות בלי מיקום מדויק מופיעים ברשימה של ' + c);
+      snap('half'); toast('המקומות בלי מיקום מדוייק מופיעים ברשימה');
     });
   }
   const seen = {};
