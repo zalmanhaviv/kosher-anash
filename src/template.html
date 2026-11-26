@@ -252,7 +252,7 @@ text{font-family:var(--font)!important}
   .attr,.maplibregl-ctrl-bottom-right{bottom:0;right:var(--desk-attr)}
 }
 /* narrow phones (360px): the search field gets the side padding back so the whole placeholder fits (QA2-8) */
-@media (max-width:380px){.sbar input{padding:0 var(--s1)}}
+@media (max-width:380px){.sbar input{padding:0 var(--s1)}.sbar input::placeholder{font-size:.92em}}
 @media (max-width:330px){.brandmark,.sbar .sep{display:none}.cta{flex-direction:column;align-items:stretch}.cta .btn{white-space:normal;height:auto;min-height:var(--tap)}.acts{grid-template-columns:repeat(2,1fr)}}
 .report-slot{display:none} /* reserved: "report a mistake" button, deferred by decision */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}button:active{transform:none}}
