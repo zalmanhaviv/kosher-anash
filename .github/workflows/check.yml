@@ -14,6 +14,8 @@ jobs:
         with: { node-version: '22' }
       - name: Data check (required fields, hours format, locations, kashrut class)
         run: python3 scripts/validate.py
+      - name: Quality flags g.q are up to date (writes nothing; fails if flags.py would change places.json)
+        run: python3 scripts/data/flags.py --check
       - name: Design tokens contrast (text >= 4.5:1, light and dark)
         run: python3 scripts/contrast.py
       - name: Logic tests in three phone time zones
@@ -49,8 +51,8 @@ jobs:
         run: python3 scripts/build.py
       - name: Playwright library (uses the runner's Google Chrome)
         run: npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.63.0
-      - name: E2E (phone 390 light/dark, desktop 1280; clock frozen)
-        timeout-minutes: 4
+      - name: E2E (phone 390/360 light/dark, desktop 1280; clock frozen)
+        timeout-minutes: 5
         run: node --test --test-concurrency=1 tests/e2e/app.e2e.mjs
       - name: Service worker (precache, offline, data rev, tile cap across restarts, streamed page, update)
         timeout-minutes: 3
