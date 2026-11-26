@@ -11,16 +11,21 @@
 <meta property="og:image" content="https://vermillion-mousse-138977.netlify.app/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials"><link rel="apple-touch-icon" href="/icon-180.png"><link rel="icon" type="image/png" href="/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="כשר לאנ״ש">
 <title>כשר לאנ״ש – מסעדות כשרות לידך</title>
-<link rel="stylesheet" href="/vendor/fonts.css">
+<link rel="preload" href="/fonts/rubik.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 /* Design system S1-7 – hybrid direction (Wolt base + Apple cleanliness), approved by the owner 26.11.
    Every colour, size, space, radius, shadow and duration is a token here; rules below use tokens only.
    Tekhelet (--brand) is for actions and the active state only. Contrast >= 4.5:1: scripts/contrast.py (CI). */
 @font-face{font-family:"Rubik";src:url(/fonts/rubik.woff2) format("woff2");font-weight:400 600;font-style:normal;font-display:swap}
+/* fallback with Rubik's metrics (S2-2): Arial scaled to Rubik's Hebrew width with Rubik's ascent/descent, so the swap
+   to Rubik moves no text. Measured in Chrome on a Hebrew sample: Rubik 400 = 0.963 of Arial, Rubik 600 = 0.937 of
+   Arial Bold; Rubik ascent 0.935, descent 0.25 of the em */
+@font-face{font-family:"Rubik Fallback";src:local("Arial"),local("ArialMT"),local("Liberation Sans"),local("LiberationSans");font-weight:400 500;size-adjust:96.3%;ascent-override:97.1%;descent-override:26%;line-gap-override:0%}
+@font-face{font-family:"Rubik Fallback";src:local("Arial Bold"),local("Arial-BoldMT"),local("Liberation Sans Bold"),local("LiberationSans-Bold");font-weight:600 700;size-adjust:93.7%;ascent-override:99.8%;descent-override:26.7%;line-gap-override:0%}
 :root{
   color-scheme:light dark;
   /* type: Rubik, text 400/500, headings 600 */
-  --font:"Rubik",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --font:"Rubik","Rubik Fallback",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
   --fw-text:400;--fw-med:500;--fw-head:600;
   --fs-xs:12px;--fs-sm:13px;--fs-md:14.5px;--fs-base:15px;--fs-input:16px;--fs-lg:18px;--fs-xl:24px;--fs-title2:22px;--fs-2xl:27px;--fs-mk:14px;--fs-mk-sel:19px;
   --lh:1.45;--lh-tight:1.2;--ls-title:-.005em;
@@ -658,7 +663,9 @@ function snap(name) { snapName = name; if (wide()) return; $('sheet').style.tran
 let map = null, mapMode = null, meMk = null;
 // markers are kept by key and rebuilt only when their look changes, not on every map move (P1-12)
 const MK = new Map(); let mkUsed = new Set();
-function loadML() {
+let mlP = null; // one load of the map library, shared with the service worker registration (S2-2)
+function loadML() { return mlP || (mlP = loadML1()); }
+function loadML1() {
   if (window.maplibregl) return Promise.resolve(true);
   const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/vendor/maplibre-gl.css'; document.head.appendChild(l);
   return Promise.race([
@@ -667,12 +674,13 @@ function loadML() {
   ]);
 }
 async function initMap() {
+  // the attribution is static text: it is on screen with the first paint, not only once the map library has arrived (S2-2)
+  { const a = document.createElement('div'); a.className = 'attr'; a.innerHTML = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'; $('map').appendChild(a); }
   if (!(await loadML())) return fallbackMap();
   try { Promise.resolve(maplibregl.setRTLTextPlugin('/vendor/rtl-text.mjs', true)).catch(() => {}); } catch {}
   let loaded = false;
   map = new maplibregl.Map({ container:'map', style: styleUrl(), center: ME ? [ME.lng, ME.lat] : [34.95, 31.95], zoom: ME ? 14.5 : 7.3, attributionControl:false, pitchWithRotate:false, dragRotate:false });
   map.touchZoomRotate.disableRotation();
-  { const a = document.createElement('div'); a.className = 'attr'; a.innerHTML = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'; $('map').appendChild(a); }
   map.on('load', () => {
     // the place is read now; the card may close before the timeout fires (QA1-5)
     { const ll = sel != null && PLACES[sel] ? LLof(PLACES[sel]) : null; if (ll) setTimeout(() => panTo(ll), 50); }
@@ -963,16 +971,17 @@ addEventListener('appinstalled', () => { INST = null; render(); toast('נוסף 
 $('sbody').addEventListener('click', e => { if (e.target.closest('#inst')) doInstall(); });
 function netBar() { const off = navigator.onLine === false; $('offl').hidden = !off; if (off) $('offl').textContent = 'אין חיבור. מוצג המידע השמור מ־' + fmtDate(DATA_UPDATED) + '. במפה רק אזורים שכבר נצפו.'; }
 addEventListener('offline', netBar); addEventListener('online', netBar); netBar();
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
+// registered once the map library has arrived (or failed), so the worker's precache revalidates it (304) instead of
+// downloading it a second time alongside the page (S2-2)
+if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => loadML().then(() => navigator.serviceWorker.register('/sw.js')).catch(() => {}));
 
 // ---------- live data from GitHub: a data change needs no new upload to Netlify ----------
 // The built-in copy shows instantly (and offline); a newer copy from the repository replaces it when it arrives.
 const RAW = 'https://raw.githubusercontent.com/zalmanhaviv/kosher-anash/main/data/';
 // Gate for remote data: every field the UI uses must have the shape data/schema.json allows (same allowed values);
 // one bad row rejects the whole set and the built-in copy stays. Unknown extra fields are ignored (the UI never reads them).
-const K_OK = ['מסעדה','קייטרינג בשרי','קייטרינג חלבי','אוכל לשבת','אולם אירועים','אולם אירועים (תעודה יומית)','מלון','בית הארחה לשבת'];
-const F_OK = ['פיצה','מאפייה וקונדיטוריה','מסעדה','פלאפל ושווארמה','מעדנייה ואוכל מוכן','קייטרינג בשרי','אולם אירועים','המבורגר וגריל','אוכל לשבת','גלידה','מלון','סושי','קייטרינג חלבי','אחר','בייגל','קפה','בית הארחה לשבת'];
-const T_OK = ['בשרי','חלבי','פרווה'];
+// K_OK, F_OK, T_OK, PREC_OK, CLOSED_OK: the enums of data/schema.json, written here by scripts/build.py (S2-2)
+/*SCHEMA*/
 const isStr = v => typeof v === 'string', isNum = v => typeof v === 'number' && isFinite(v);
 const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -980,13 +989,13 @@ const PH = /^\+?[0-9][0-9 -]{6,18}[0-9]$/;
 const okPeriod = x => Array.isArray(x) && x.length === 6 && isInt(x[0],0,6) && isInt(x[1],0,23) && isInt(x[2],0,59) && isInt(x[3],0,6) && isInt(x[4],0,24) && isInt(x[5],0,59);
 const okG = g => isObj(g)
   && isObj(g.loc) && isNum(g.loc.lat) && isNum(g.loc.lng) && g.loc.lat >= 29.3 && g.loc.lat <= 33.5 && g.loc.lng >= 34.2 && g.loc.lng <= 35.95
-  && ['poi','house','street'].includes(g.prec)
+  && PREC_OK.includes(g.prec)
   && isStr(g.chk) && /^20\d\d-(0[1-9]|1[0-2])$/.test(g.chk)
   && (g.src === undefined || g.src === 'osm')
   && (g.phone === undefined || (isStr(g.phone) && PH.test(g.phone)))
   && (g.periods === undefined || (Array.isArray(g.periods) && g.periods.every(okPeriod)))
   && (g.week === undefined || (Array.isArray(g.week) && g.week.length === 7 && g.week.every(isStr)))
-  && (g.closed === undefined || g.closed === 'סגור לצמיתות' || g.closed === 'סגור זמנית')
+  && (g.closed === undefined || CLOSED_OK.includes(g.closed))
   && (g.q === undefined || (Array.isArray(g.q) && g.q.every(isStr)));
 const okPlace = p => isObj(p)
   && isStr(p.u) && /^[0-9a-f]{7,8}$/.test(p.u)
