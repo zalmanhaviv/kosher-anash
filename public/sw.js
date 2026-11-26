@@ -60,11 +60,12 @@ async function data(e, r) {
   const c = await caches.open(DATA), u = new URL(r.url), key = u.origin + u.pathname, name = u.pathname.split('/').pop();
   const META = key.replace(/[^/]+$/, 'meta.json'), NEXT = META + '?next=1';
   if (name === 'meta.json') {
-    const net = okNet(r).then(async res => { await c.put(NEXT, res.clone()); return res; });
+    let got = null;
+    const net = fetch(r).then(async res => { got = res; if (!res.ok) throw new Error('http ' + res.status); await c.put(NEXT, res.clone()); return res; });
     e.waitUntil(net.catch(() => {}));
     const hit = await c.match(META);
     try { return await (hit ? timeout(net, META_WAIT) : net); }
-    catch { if (hit) { await c.delete(NEXT); return hit; } return fetch(r).catch(() => Response.error()); }
+    catch { if (hit) { await c.delete(NEXT); return hit; } return got || Response.error(); }
   }
   let res = null;
   try {
