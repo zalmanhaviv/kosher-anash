@@ -281,12 +281,12 @@ button:active{transform:scale(var(--press))}
 <button class="fab" id="meBtn" aria-label="המיקום שלי"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
 
 <section class="sheet" id="sheet" role="main" aria-label="תוצאות">
-  <div class="shead" id="shead"><div class="grab"></div><div class="stitle"><h2 id="sTitle">מקומות כשרים</h2><span id="sSub" aria-live="polite"></span></div></div>
+  <div class="shead" id="shead"><div class="grab"></div><div class="stitle"><h2 id="sTitle" tabindex="-1">מקומות כשרים</h2><span id="sSub" aria-live="polite"></span></div></div>
   <div class="sbody" id="sbody"></div>
 </section>
 
 <div class="scrim" id="scrim"></div>
-<div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-label="סינון"></div>
+<div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT" inert></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -645,11 +645,37 @@ function drawSvg() {
 $('svgmap').addEventListener('click', e => { const t = e.target.closest('[data-c]'); if (!t) return; S.city = t.dataset.c; sel = null; shown = 40; render(); snap('half'); });
 
 // ---------- filter dialog ----------
+// one dialog element for filter / when / town. Closed = inert (no hidden Tab stops); open = focus kept inside;
+// the opener is remembered once per opening, so re-rendering the filter after a choice keeps it (QA1-2, QA1-3)
 let lastFocus = null;
-function openDlg(html) { lastFocus = document.activeElement; $('dlg').innerHTML = html; $('dlg').classList.add('on'); $('scrim').classList.add('on'); const h = $('dlg').querySelector('h3'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll:true }); } }
-function closeDlg() { $('dlg').classList.remove('on'); $('scrim').classList.remove('on'); if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll:true }); }
+const dlgOpen = () => $('dlg').classList.contains('on');
+const focusKey = el => el && el.closest && el.closest('#dlg') ? [...el.attributes].filter(a => a.name === 'id' || a.name.startsWith('data-')).map(a => `[${a.name}="${CSS.escape(a.value)}"]`).join('') : '';
+function openDlg(html) {
+  const d = $('dlg'), again = dlgOpen(), key = again ? focusKey(document.activeElement) : '';
+  if (!again) lastFocus = document.activeElement;
+  d.innerHTML = html; d.inert = false; d.classList.add('on'); $('scrim').classList.add('on');
+  const h = d.querySelector('h3'); if (h) { h.id = 'dlgT'; h.setAttribute('tabindex', '-1'); } // the dialog's own name (aria-labelledby, QA1-4)
+  const f = (key && d.querySelector(key)) || h; if (f) f.focus({ preventScroll:true });
+}
+function closeDlg() {
+  if (!dlgOpen()) return;
+  const d = $('dlg'); d.classList.remove('on'); d.inert = true; $('scrim').classList.remove('on');
+  const back = lastFocus; lastFocus = null;
+  if (back && back.isConnected && back.focus) back.focus({ preventScroll:true });
+  // the opener can disappear in the render that follows (e.g. the town button in the list card): fall back to the list heading
+  setTimeout(() => { const a = document.activeElement; if ((!a || a === document.body) && !dlgOpen()) $('sTitle').focus({ preventScroll:true }); }, 0);
+}
 $('scrim').onclick = closeDlg;
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDlg(); if (sel != null) { sel = null; render(); } } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (dlgOpen()) { closeDlg(); return; } if (sel != null) { sel = null; render(); } return; }
+  if (e.key !== 'Tab' || !dlgOpen()) return;
+  const fs = [...$('dlg').querySelectorAll('button, select, input, a[href], [tabindex]:not([tabindex="-1"])')].filter(x => !x.disabled && x.offsetParent !== null);
+  if (!fs.length) return;
+  const first = fs[0], last = fs[fs.length - 1], a = document.activeElement;
+  if (!$('dlg').contains(a)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && (a === first || !fs.includes(a))) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+});
 function filters() {
   const foods = [...new Set(PLACES.filter(p => p.k === 'מסעדה').map(p => p.f))].sort((a,b)=>a.localeCompare(b,'he'));
   const cities = Object.keys(CITY).filter(c => PLACES.some(p => p.c === c)).sort((a,b)=>a.localeCompare(b,'he'));
