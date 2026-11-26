@@ -1,0 +1,96 @@
+/* ---------- style E: hybrid – Wolt's friendly base + Apple's cleanliness (S1-6) ----------
+   From Wolt: rounded place cards with a status label, confident tekhelet on the primary action and active chips,
+   big tap targets (>=44px), Rubik. From Apple: near-white quiet background, almost no lines (spacing + very soft
+   shadow), translucent search over the map, grabber, clean map palette, simple round markers, restrained motion. */
+:root{
+  --font:"Rubik","Arial Hebrew",Arial,"Liberation Sans",system-ui,sans-serif;--font-h:var(--font);
+  --fs-body:15px;--fs-small:13px;--fs-name:16px;--fs-title:24px;--fs-title2:22px;--fs-card:27px;--fs-sec:18px;--fs-chip:14.5px;--fs-search:16px;
+  --w-title:600;--w-card:600;--w-name:500;--w-sec:600;--w-chip:500;--w-strong:500;--w-label:500;--w-label-big:600;--ls-title:-.005em;
+  --pad:16px;--sec-gap:16px;--chip-gap:8px;--chip-h:44px;--search-h:50px;--btn-h:48px;--fab:48px;--kb:38px;--kb-big:48px;
+  --r-sheet:22px;--r-card:16px;--r-chip:22px;--r-search:16px;--r-btn:14px;--r-fab:24px;--r-kb:50%;--r-check:8px;--r-toast:16px;
+  --dur:.2s;--press:.98;
+  --bg:#F6F7F9;--surface:#FFFFFF;--surface2:#FFFFFF;--ink:#16191E;--sub:#5B626C;--line:rgba(20,30,45,.08);--line-strong:#B3BAC4;--link:#0F5EA3;
+  --brand:#0F5EA3;--brand-ink:#FFFFFF;--brand-tint:#E6F0F9;--focus:#0F5EA3;
+  --open-bg:#E5F2EA;--soon-bg:#FBEEDF;--closed-bg:#FBE9E7;
+  --sheet-bg:#F6F7F9;--search-bg:rgba(255,255,255,.80);--search-border:0;--sh-search:0 2px 14px rgba(20,30,45,.10);
+  --chip-bg:rgba(255,255,255,.86);--chip-ink:#16191E;--chip-border:0;--chip-on-bg:#0F5EA3;--chip-on-ink:#FFFFFF;--chip-on-border:transparent;--sh-chip:0 1px 6px rgba(20,30,45,.10);
+  --btn2-bg:#FFFFFF;--btn2-ink:#0F5EA3;--btn2-border:0;--float-bg:rgba(255,255,255,.9);--float-ink:#0F5EA3;--float-border:0;
+  --sh-card:0 1px 2px rgba(20,30,45,.04),0 2px 10px rgba(20,30,45,.05);
+  --sh-sheet:0 -6px 28px rgba(20,30,45,.09);--sh-float:0 2px 12px rgba(20,30,45,.14);--sh-panel:1px 0 0 rgba(20,30,45,.06);--panel-border:0;--panel-div:0;
+  --grabber:#C9CDD3;--sec-ink:#16191E;--toast-bg:rgba(22,25,30,.92);--toast-ink:#FFFFFF;
+  --m-land:#F5F4F0;--m-desert:#F2ECDF;--m-green:#DFEDD6;--m-sea:#B5D8F2;--m-sea-line:#A1CBEB;--m-coast:#A6CDEB;--m-urban:#ECE9E3;--m-street:#FFFFFF;
+  --m-mw:#F6DE9C;--m-mw-case:#E3C67C;--m-tr:#FFFFFF;--m-tr-case:#DCD8CF;--m-border:#A39C8F;--m-label:#3A3D42;--m-halo:#F8F7F3;--m-water-label:#234F76;
+  --pin-ring:#FFFFFF;--cl-bg:#0F5EA3;--cl-ink:#FFFFFF;
+}
+:root[data-theme=dark]{
+  --bg:#0F1114;--surface:#1B1E23;--surface2:#1B1E23;--ink:#F1F3F6;--sub:#A3AAB4;--line:rgba(255,255,255,.08);--line-strong:#5A626D;--link:#7DBBF0;
+  --brand:#5BA6E8;--brand-ink:#07182A;--brand-tint:#16293C;--focus:#7DBBF0;
+  --open-bg:#173A27;--soon-bg:#3B2A14;--closed-bg:#3F1D1B;
+  --sheet-bg:#0F1114;--search-bg:rgba(36,40,46,.82);--sh-search:0 2px 14px rgba(0,0,0,.45);
+  --chip-bg:rgba(36,40,46,.88);--chip-ink:#F1F3F6;--chip-on-bg:#5BA6E8;--chip-on-ink:#07182A;--sh-chip:none;
+  --btn2-bg:#1B1E23;--btn2-ink:#7DBBF0;--float-bg:rgba(36,40,46,.92);--float-ink:#7DBBF0;
+  --sh-card:none;
+  --sh-sheet:0 -6px 28px rgba(0,0,0,.5);--sh-float:0 2px 12px rgba(0,0,0,.5);--sh-panel:1px 0 0 rgba(255,255,255,.06);
+  --grabber:#4A4F57;--sec-ink:#F1F3F6;--toast-bg:rgba(241,243,246,.94);--toast-ink:#16191E;
+  --m-land:#22252A;--m-desert:#29271F;--m-green:#1F2C25;--m-sea:#132C44;--m-sea-line:#1C405F;--m-coast:#1C405F;--m-urban:#2B2E34;--m-street:#383C43;
+  --m-mw:#7A6840;--m-mw-case:#4F4430;--m-tr:#454951;--m-tr-case:#1B1D21;--m-border:#6A675F;--m-label:#E3E5E9;--m-halo:#1A1C20;--m-water-label:#7FAAD0;
+  --pin-ring:#1B1E23;--cl-bg:#5BA6E8;--cl-ink:#07182A;
+}
+/* Apple: translucent glass over the map */
+.sbar,.ph .chip,.fab{backdrop-filter:blur(20px) saturate(1.7);-webkit-backdrop-filter:blur(20px) saturate(1.7)}
+.dk .sbar{background:var(--surface);box-shadow:var(--sh-card)}
+.dk .chip{background:var(--surface);box-shadow:var(--sh-card)}
+.dk .chip[aria-pressed=true]{background:var(--chip-on-bg)}
+.chip{padding:0 15px}
+.chip .ic{stroke-width:2}
+/* Wolt: tekhelet only for action / active – the town button is a quiet tinted action, not a colour block */
+.townbtn{height:44px;border-radius:22px;padding:0 16px;background:var(--brand-tint);color:var(--btn2-ink)}
+.back{height:44px}
+.ib{width:44px;height:44px;margin-inline-end:-8px}
+.allc{min-height:44px;padding:0 4px}
+.cand{background:var(--surface);padding:10px 12px;border-radius:var(--r-card);box-shadow:var(--sh-card)}
+.sec-h{margin-bottom:6px}
+/* compact friendly place card: white, rounded, no border, soft shadow, status as a coloured label */
+.item{background:var(--surface);border-radius:var(--r-card);padding:9px 14px;margin-bottom:7px;gap:12px;box-shadow:var(--sh-card);align-items:center}
+.item .kb{font-size:18px}
+.item .bd{gap:1px}
+.nm{line-height:1.25}
+.l2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.l3{margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px}
+.l3 .stt{display:inline-block;padding:1px 8px;border-radius:8px;font-weight:500;font-size:12.5px}
+.stt.st-y{background:var(--open-bg)}.stt.st-s{background:var(--soon-bg)}.stt.st-n{background:var(--closed-bg)}
+.l3 .sep{display:none}.l3 .kh{color:var(--sub);font-weight:400}
+.dbt{margin-top:3px;font-weight:500}
+.more{justify-content:center;min-height:44px;padding:0;margin:0 0 4px;border-radius:var(--r-btn);background:var(--surface);box-shadow:var(--sh-card)}
+.townrow{box-shadow:var(--sh-card);background:var(--surface);min-height:56px}
+.foot{border-top:0}
+/* place card: calm large title, small grey metadata, groups instead of lines */
+.card .chead{padding-top:4px}
+.addr{font-size:14.5px}
+.cst{margin-top:12px}
+.cst .stt{display:inline-block;align-self:flex-start;padding:5px 12px;border-radius:10px;font-size:15px;font-weight:500}
+.acts{grid-template-columns:repeat(3,1fr);gap:8px}
+.acts .act.pri{grid-column:1/-1;flex-direction:row;gap:8px;min-height:52px;font-size:16.5px;border-radius:var(--r-btn)}
+.acts .act{min-height:58px;box-shadow:var(--sh-card)}
+.kbox,.dl{background:var(--surface);border-radius:var(--r-card);padding:14px;border:0;margin-top:10px;box-shadow:var(--sh-card)}
+.hr{padding:6px 0}
+.doubt{border-radius:12px}
+.opt{box-shadow:var(--sh-card);min-height:56px}
+.trow{border-bottom:0;min-height:52px;border-radius:12px;padding:0 8px}
+.trow:hover{background:var(--surface)}
+.msearch{box-shadow:var(--sh-card);height:48px}
+.btn.pri,.mact .pri{border-radius:var(--r-btn)}
+.mact .btn{height:50px}
+.zoom button{width:48px;height:48px}
+.zoom button+button{border-top:0;box-shadow:0 -1px 0 var(--line)}
+/* markers (Apple): small circle with the kashrut letter, green/orange dot when open, faded otherwise */
+.mk-h{display:block;position:relative}
+.mk-h .kb{--kb:28px;font-size:14px;border:2px solid var(--pin-ring);box-shadow:0 1px 4px rgba(20,30,45,.25)}
+.mk-h .kb-products{box-shadow:inset 0 0 0 2px var(--k-products),0 1px 4px rgba(20,30,45,.25)}
+.mk-h .sd{position:absolute;top:-1px;left:-1px;width:10px;height:10px;border-radius:50%;border:2px solid var(--pin-ring)}
+.mk-h .sd.y{background:var(--open)}.mk-h .sd.s{background:var(--soon)}
+.mk-h.dim .kb{opacity:.55}
+.mk-hs{display:flex;flex-direction:column;align-items:center;gap:2px}
+.mk-hs svg{filter:drop-shadow(0 3px 6px rgba(20,30,45,.25))}
+.mk-hs .lb{font-weight:600;font-size:13px;color:var(--ink);text-shadow:0 0 3px var(--m-halo),0 0 3px var(--m-halo),0 0 3px var(--m-halo);white-space:nowrap}
+.cl-h{min-width:var(--s);height:var(--s);padding:0 5px;border-radius:calc(var(--s) / 2);background:var(--cl-bg);color:var(--cl-ink);display:grid;place-items:center;font-weight:600;font-size:14px;border:2px solid var(--pin-ring);box-shadow:0 1px 6px rgba(20,30,45,.25)}
