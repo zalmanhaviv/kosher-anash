@@ -134,8 +134,8 @@ test('24 hours except Shabbat: closes only at the published Friday hour', () => 
 
 test('a far close at 00:00 is told as midnight of the day before', () => {
   const p = { g: { periods: [0, 1, 2, 3].map(day24).concat([[4, 0, 0, 5, 0, 0], [5, 6, 0, 5, 16, 0]]) } }; // 24h until Thursday night
-  assert.equal(statusAt(p, at(0, 23, 30), false).t, 'פתוח עד יום חמישי בחצות');
-  assert.equal(statusAt(p, at(3, 23), false).t, 'פתוח עד מחר בחצות');
+  assert.equal(statusAt(p, at(0, 23, 30), false).t, 'פתוח עד יום חמישי ב־00:00');
+  assert.equal(statusAt(p, at(3, 23), false).t, 'פתוח עד מחר ב־00:00');
   assert.equal(statusAt(p, at(4, 0), false).t, 'פתוח עד 00:00');
   assert.equal(statusAt(p, at(4, 23, 15), false).t, 'נסגר בעוד 45 דק׳');
 });

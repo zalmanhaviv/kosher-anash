@@ -450,7 +450,7 @@ describe('hours in the UI', () => {
   test('Google-flagged "24h" places at 23:30: real close time + doubt note in list and card', async () => {
     const r = await go('/?p=347ac19', { viewport: PHONE, time: TUE_NIGHT });
     await mapReady(r.page); await r.page.waitForTimeout(200); 
-    assert.equal(await r.page.textContent('.det .row [class^="st-"]'), 'פתוח עד יום חמישי בחצות');
+    assert.equal(await r.page.textContent('.det .row [class^="st-"]'), 'פתוח עד יום חמישי ב־00:00');
     assert.match(await r.page.textContent('.det .dl'), /נראה שהמידע אינו מדוייק/);
     await r.page.click('#back'); await typeQ(r.page, 'חלב חיטים מירון');
     assert.match(await r.page.textContent('#sbody .item'), /נראה שהמידע אינו מדוייק/);
