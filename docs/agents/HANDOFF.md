@@ -14,6 +14,8 @@
 
 - S1-8 (hours-shabbat, 26.11): branch `agent/hours-shabbat/S1-8` (נדחף, בלי PR). P0-2 תוקן ב-`src/logic.js` (איחוד תקופות, שקיעה NOAA מלאה), 28 בדיקות עוברות ב-3 אזורי זמן, validate ו-build עוברים. אין שינוי חתימה ואין שינוי ב-template. פתוח: אימות נרות מול לוח מפורסם (חסום ברשת) ושאלת גובה; הדלקת נרות לערב חג (REQUESTS.md). ממתין ל-reviewer ו-qa.
 
+- S1-9 (map-ux, 26.11): branch `agent/map-ux/S1-9` (נדחף, בלי PR, בלי deploy). תוקנו QA1-1 עד QA1-7, ביקורת #2, #3 ו-#5, ו-3 בקשות של design-system (REQUESTS מסומנות). לפי הוראת המתאם נערכו גם קבצים שאינם של map-ux: בלוק הסגנון (design-system) – `.kh` עוטף לשורה שנייה, `.foot a` בגובה 44px, גודל האות ב-`.kbox .ks` עבר מהסגנון המוטבע ל-CSS, הוסר הבורר `[style*="Assistant"]`. ובנוסף `tests/e2e/app.e2e.mjs` וצילומי הבסיס (qa) ו-CHANGELOG/HANDOFF/REQUESTS (מתאם). בלי צבעים חדשים: ל-theme-color הוזנו ערכי `--bg` כפי שביקש design-system. בדיקות: validate 0 שגיאות, contrast 60 זוגות (הנמוך 5.07), logic 28/28 בשלושה אזורי זמן, flags --check 0, build עובר, e2e 60/60 ו-0 todo. 15 הבדיקות החדשות נכשלות על `main` ועוברות על ה-branch. visual: אחרי עדכון 3 הבסיסים, כל השישה ≤0.14%. פתוח: `/vendor/fonts.css` (ביקורת #4, perf-pwa). `docs/qa/stage1.md` עדיין מציין 53 בדיקות ו-8 todo (qa). ממתין ל-reviewer.
+
 ## השלב הבא (סשן חדש)
 שלב 1 לפי AUDIT §8: data (P0-1: שעות שבת/ליל שישי חשודות, התאמות גוגל משותפות, הרחבת validate.py) → design-system (2–3 כיוונים, הבעלים בוחר) → hours-shabbat (P0-2: איחוד תקופות רצופות, בדיקות 24 שעות ונרות ±1 דק׳) → reviewer → qa.
 P0-4 (בדיקת נתונים חיים מלאה + escaping של t) ו-P0-5 (נוסח ליל שישי בכרטיס) – map-ux בתחילת שלב 1 לפי AUDIT.
