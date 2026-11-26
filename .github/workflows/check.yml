@@ -14,6 +14,8 @@ jobs:
         with: { node-version: '22' }
       - name: Data check (required fields, hours format, locations, kashrut class)
         run: python3 scripts/validate.py
+      - name: Design tokens contrast (text >= 4.5:1, light and dark)
+        run: python3 scripts/contrast.py
       - name: Logic tests in three phone time zones
         run: |
           for tz in Asia/Jerusalem America/New_York UTC; do TZ=$tz node --test tests/*.test.mjs; done
