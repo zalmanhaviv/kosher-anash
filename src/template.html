@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#F6F7F9" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0F1114" media="(prefers-color-scheme: dark)">
 <meta name="description" content="מסעדות כשרות לאנ״ש לידך: מה פתוח עכשיו, הכשרות כפי שבמאגר מסעדות לאנ״ש חב״ד, ומרחק. גם לתכנון יום שישי.">
 <meta property="og:type" content="website"><meta property="og:locale" content="he_IL"><meta property="og:site_name" content="כשר לאנ״ש">
 <meta property="og:title" content="כשר לאנ״ש – מסעדות כשרות לידך">
@@ -577,15 +577,14 @@ async function initMap() {
   if (!(await loadML())) return fallbackMap();
   try { Promise.resolve(maplibregl.setRTLTextPlugin('/vendor/rtl-text.mjs', true)).catch(() => {}); } catch {}
   let loaded = false;
-  map = new maplibregl.Map({ container:'map', style: matchMedia('(prefers-color-scheme: dark)').matches ? '/map-style/dark.json' : '/map-style/light.json', center: ME ? [ME.lng, ME.lat] : [34.95, 31.95], zoom: ME ? 14.5 : 7.3, attributionControl:false, pitchWithRotate:false, dragRotate:false });
+  map = new maplibregl.Map({ container:'map', style: styleUrl(), center: ME ? [ME.lng, ME.lat] : [34.95, 31.95], zoom: ME ? 14.5 : 7.3, attributionControl:false, pitchWithRotate:false, dragRotate:false });
   map.touchZoomRotate.disableRotation();
   { const a = document.createElement('div'); a.className = 'attr'; a.innerHTML = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'; $('map').appendChild(a); }
   map.on('load', () => {
-    if (sel != null && PLACES[sel] && LLof(PLACES[sel])) setTimeout(() => panTo(LLof(PLACES[sel])), 50);
+    // the place is read now; the card may close before the timeout fires (QA1-5)
+    { const ll = sel != null && PLACES[sel] ? LLof(PLACES[sel]) : null; if (ll) setTimeout(() => panTo(ll), 50); }
     loaded = true;
-    // Hebrew place names; only layers that show a name (road-number signs show 'ref' and must keep it)
-    for (const ly of map.getStyle().layers) { if (ly.type !== 'symbol') continue; const tf = map.getLayoutProperty(ly.id, 'text-field'); if (tf != null && /name/.test(JSON.stringify(tf)) && !/"ref"/.test(JSON.stringify(tf)))
-      map.setLayoutProperty(ly.id, 'text-field', ['coalesce', ['get', 'name:he'], ['get', 'name']]); }
+    hebLabels();
     if (mapMode === 'svg') { $('svgmap').setAttribute('hidden', ''); $('map').hidden = false; map.resize(); }
     mapMode = 'gl'; paint();
   });
@@ -594,6 +593,15 @@ async function initMap() {
   map.on('click', e => { if (e.originalEvent.target.closest && e.originalEvent.target.closest('.mkw')) return; if (!wide() && snapName !== 'peek') snap('peek'); });
   setTimeout(() => { if (!loaded && !document.hidden) fallbackMap(); }, 12000);
 }
+const DARK = matchMedia('(prefers-color-scheme: dark)');
+const styleUrl = () => DARK.matches ? '/map-style/dark.json' : '/map-style/light.json';
+// Hebrew place names; only layers that show a name (road-number signs show 'ref' and must keep it)
+function hebLabels() {
+  for (const ly of map.getStyle().layers) { if (ly.type !== 'symbol') continue; const tf = map.getLayoutProperty(ly.id, 'text-field'); if (tf != null && /name/.test(JSON.stringify(tf)) && !/"ref"/.test(JSON.stringify(tf)))
+    map.setLayoutProperty(ly.id, 'text-field', ['coalesce', ['get', 'name:he'], ['get', 'name']]); }
+}
+// light/dark follows the system while the app is open; a full style load, then the same label rules again
+DARK.addEventListener('change', () => { if (!map || mapMode !== 'gl') return; map.once('style.load', hebLabels); map.setStyle(styleUrl(), { diff: false }); });
 const mkEl = (html, cls) => { const d = document.createElement('div'); d.className = 'mkw ' + (cls || ''); d.innerHTML = html; return d; };
 function paint() {
   if (mapMode === 'svg') return drawSvg();
