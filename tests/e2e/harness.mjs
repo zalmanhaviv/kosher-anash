@@ -35,7 +35,8 @@ export const L = ctx.L;
 
 const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.mjs':'text/javascript; charset=utf-8', '.css':'text/css', '.json':'application/json', '.webmanifest':'application/manifest+json', '.png':'image/png', '.woff2':'font/woff2', '.txt':'text/plain' };
 // files the build expects from the live site (CONTEXT: vendor/ is not in the repo); stubbed when absent locally
-const STUBS = { '/vendor/fonts.css': ['text/css', ''], '/vendor/rtl-text.mjs': ['text/javascript', 'export default {};'] };
+// (/vendor/fonts.css is gone since S2-2: the page no longer asks for it, so a request for it is a plain 404)
+const STUBS = { '/vendor/rtl-text.mjs': ['text/javascript', 'export default {};'] };
 
 // headers of the '/*' block in dist/_headers (CSP with the build's script hashes), so CSP violations show up as console errors
 const HEADERS = (() => { const h = {}; try { const t = readFileSync(join(DIST, '_headers'), 'utf8'); const blk = t.split(/\n(?=\S)/).find(b => b.startsWith('/*')); for (const line of (blk || '').split('\n').slice(1)) { const m = /^\s+([\w-]+):\s*(.*)$/.exec(line); if (m) h[m[1]] = m[2]; } } catch {} return h; })();
