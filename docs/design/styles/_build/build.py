@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the four self-contained mockups: docs/design/styles/<style>.html
+"""Assemble the self-contained mockups (four S1-5 styles + the S1-6 hybrid): docs/design/styles/<style>.html
 Run from anywhere:  node docs/design/styles/_build/data.mjs && python3 docs/design/styles/_build/build.py"""
 import os, re, json
 B = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.dirname(B)
@@ -9,6 +9,7 @@ STYLES = {
     'wolt': ('נועז וידידותי', 'השראה: Wolt', 'family=Rubik:wght@400;500;600;700&family=Varela+Round'),
     'airbnb': ('חם ורך', 'השראה: Airbnb', 'family=Assistant:wght@400;500;600;700;800'),
     'google': ('מעשי וצפוף', 'השראה: Google Maps', 'family=Heebo:wght@400;500;600;700'),
+    'hybrid': ('משולב', 'הבסיס של Wolt והניקיון של Apple Maps', 'family=Rubik:wght@400;500;600;700'),
 }
 def dark_dup(css):
     # every ':root[data-theme=dark]{…}' block is also emitted for the system setting (unless the reviewer forced light)

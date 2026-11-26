@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Screenshots + interaction checks for the four mockups (local Chrome, ALL network blocked: Google Fonts do not load,
+"""Screenshots + interaction checks for the mockups (local Chrome, ALL network blocked: Google Fonts do not load,
 so the screenshots use the local fallback fonts). Writes docs/design/styles/<style>-phone.png, -card.png, -desktop.png, -dark.png."""
 import os, sys
 from playwright.sync_api import sync_playwright
 B = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.dirname(B)
-STYLES = sys.argv[1:] or ['apple', 'wolt', 'airbnb', 'google']
+STYLES = sys.argv[1:] or ['apple', 'wolt', 'airbnb', 'google', 'hybrid']
 ok = True
 def check(cond, msg):
     global ok
