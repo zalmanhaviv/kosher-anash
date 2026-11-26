@@ -35,6 +35,8 @@ export function serve({ dist = DIST, port = 0, onRequest, override } = {}) {
     if (onRequest) onRequest(p, req);
     if (p.endsWith('/')) p += 'index.html';
     const ov = override && override(p);
+    // a function answers the request itself (tests: slow or streamed responses), with this path's headers
+    if (typeof ov === 'function') return ov(req, res, Object.assign({ 'Content-Type': TYPES[extname(p)] || 'application/octet-stream' }, hdr(p === '/index.html' ? '/' : p)));
     if (ov != null) { res.writeHead(200, Object.assign({ 'Content-Type': TYPES[extname(p)] || 'application/octet-stream' }, hdr(p))); return res.end(ov); }
     const f = join(dist, p);
     if (!f.startsWith(dist) || !existsSync(f) || !statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Builds dist/ from src/template.html + data/ + public/ (+ vendor/ when present).
-Run: python3 scripts/build.py      (vendor/ comes from scripts/fetch_vendor.sh)
+Run: python3 scripts/build.py      (vendor/ comes from scripts/fetch_vendor.sh; every pinned file must be there)
+     python3 scripts/build.py --dev  (local test build: missing vendor files only warn, dist/NOT-FOR-RELEASE.txt)
 
 Besides filling the template it
 - writes the allowed values of the live-data gate (K_OK, F_OK, T_OK, PREC_OK, CLOSED_OK) from data/schema.json, so a
   schema change can never make the app silently reject every live update; HC in the template must match schema hc;
-- copies only the vendor files listed in fetch_vendor.sh and checks each against its pinned sha256;
+- copies only the vendor files listed in fetch_vendor.sh and checks each against its pinned sha256; a missing one stops
+  the build (except with --dev);
 - gives sw.js a version from a hash of everything it serves and the exact precache list of this build;
 - puts the CSP hashes of the inline scripts into dist/_headers;
 - reports gzip sizes and stops when a budget is exceeded (docs/perf/stage2.md)."""
@@ -45,24 +47,36 @@ def vendor_pins():
     return pins
 
 
-def copy_vendor(dist):
+def copy_vendor(dist, dev=False):
+    """Copies the pinned vendor files. A missing or empty one stops the build (without rtl-text.mjs Hebrew map labels
+    are drawn reversed, without maplibre the SVG fallback map is shown), unless dev=True (--dev): then the build goes
+    on and dist/NOT-FOR-RELEASE.txt names what is missing."""
     src = ROOT / 'vendor'
-    if not src.exists():
-        print('note: vendor/ missing – the map falls back to the SVG map (run scripts/fetch_vendor.sh)'); return []
-    out = []
-    (dist / 'vendor').mkdir()
-    for name, pin in vendor_pins().items():
-        f = src / name
-        if not f.exists() or f.stat().st_size == 0:
-            print(f'note: vendor/{name} missing'); continue
-        h = hashlib.sha256(f.read_bytes()).hexdigest()
+    pins = vendor_pins()
+    missing = [n for n in pins if not (src / n).is_file() or (src / n).stat().st_size == 0]
+    # a changed file is checked first: it stops the build even with --dev
+    for name, pin in pins.items():
+        if name in missing: continue
+        h = hashlib.sha256((src / name).read_bytes()).hexdigest()
         if pin and h != pin: sys.exit(f'build stopped: vendor/{name} sha256 {h} != pinned {pin} (scripts/fetch_vendor.sh)')
         if not pin: print(f'warning: vendor/{name} not pinned; sha256 {h}')
-        shutil.copy2(f, dist / 'vendor' / name); out.append('/vendor/' + name)
+    if missing:
+        msg = f"vendor/ is missing {', '.join(missing)} (run: sh scripts/fetch_vendor.sh)"
+        if not dev: sys.exit(f'build stopped: {msg}; for a local test build without them: python3 scripts/build.py --dev')
+        print(f'warning: {msg}; dev build, not for release')
+        (dist / 'NOT-FOR-RELEASE.txt').write_text(f'Dev build (--dev): {msg}\n')
+    out = []
+    for name in pins:
+        if name in missing: continue
+        (dist / 'vendor').mkdir(exist_ok=True)
+        shutil.copy2(src / name, dist / 'vendor' / name); out.append('/vendor/' + name)
     return out
 
 
-def main():
+def main(argv=sys.argv[1:]):
+    unknown = [a for a in argv if a != '--dev']
+    if unknown: sys.exit(f'build stopped: unknown option {unknown[0]} (only --dev)')
+    dev = '--dev' in argv
     places = json.load(open(ROOT / 'data/places.json', encoding='utf-8'))
     cities = json.load(open(ROOT / 'data/cities.json', encoding='utf-8'))
     schema = json.load(open(ROOT / 'data/schema.json', encoding='utf-8'))
@@ -83,7 +97,7 @@ def main():
     dist = ROOT / 'dist'
     if dist.exists(): shutil.rmtree(dist)
     shutil.copytree(ROOT / 'public', dist)
-    vendor = copy_vendor(dist)
+    vendor = copy_vendor(dist, dev)
     (dist / 'index.html').write_text(html, encoding='utf-8')
     # CSP: allow exactly the inline scripts of this build
     hashes = ' '.join("'sha256-" + base64.b64encode(hashlib.sha256(m.group(1).encode()).digest()).decode() + "'"
@@ -98,8 +112,10 @@ def main():
            '/fonts/rubik.woff2', '/map-style/light.json', '/map-style/dark.json'] + vendor
     for p in pre:
         if p != '/' and not (dist / p.lstrip('/')).is_file(): sys.exit(f'build stopped: precache file missing: {p}')
+    # sw.js is hashed as written in public/ (before the version is put in), so a change to the worker alone is a new
+    # cache version too
     ver = hashlib.sha256()
-    for f in sorted(x for x in dist.rglob('*') if x.is_file() and x.name != 'sw.js'):
+    for f in sorted(x for x in dist.rglob('*') if x.is_file()):
         ver.update(str(f.relative_to(dist)).encode()); ver.update(hashlib.sha256(f.read_bytes()).digest())
     sw = (dist / 'sw.js').read_text()
     if "'__BUILD__'" not in sw or '__PRECACHE__' not in sw: sys.exit('build stopped: sw.js placeholders missing')

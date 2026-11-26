@@ -1,5 +1,5 @@
 // Checks of scripts/build.py output and guards (no browser). Run after the build:
-//   python3 scripts/build.py && node --test tests/perf/build.test.mjs
+//   python3 scripts/build.py && node --test tests/perf/build.test.mjs     (or --dev when vendor/ is incomplete)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -36,6 +36,65 @@ d = pathlib.Path(tempfile.mkdtemp()); (d / 'vendor').mkdir(); (d / 'scripts').mk
 shutil.copy(build.ROOT / 'scripts/fetch_vendor.sh', d / 'scripts')
 (d / 'vendor' / 'maplibre-gl.mjs').write_text('tampered')
 build.ROOT = d; build.copy_vendor(d / 'dist')`), /sha256 .* != pinned/);
+});
+
+// copy_vendor() in a scratch ROOT with the real fetch_vendor.sh and vendor files whose content matches their pins
+const scratch = (setup, call) => py(`import pathlib, tempfile, shutil, hashlib, re
+d = pathlib.Path(tempfile.mkdtemp()); (d / 'scripts').mkdir(); (d / 'dist').mkdir()
+sh = (build.ROOT / 'scripts/fetch_vendor.sh').read_text()
+(d / 'scripts/fetch_vendor.sh').write_text(sh)
+v = d / 'vendor'; v.mkdir()
+build.ROOT = d
+pins = build.vendor_pins()
+# a file that hashes to its pin is not at hand here, so each test file gets a fresh pin of its own content
+for n in pins: (v / n).write_text('content of ' + n)
+sh = re.sub(r'^(get\\s+(\\S+)\\s+\\S+\\s+)[0-9a-f]{64}', lambda m: m.group(1) + hashlib.sha256(('content of ' + m.group(2)).encode()).hexdigest(), sh, flags=re.M)
+(d / 'scripts/fetch_vendor.sh').write_text(sh)
+${setup}
+${call}`);
+
+test('a complete pinned vendor/ is copied', () => {
+  const out = JSON.parse(scratch('', 'import json; print(json.dumps(build.copy_vendor(d / "dist")))').trim().split('\n').pop());
+  assert.deepEqual(out.sort(), ['/vendor/maplibre-gl-worker.mjs', '/vendor/maplibre-gl.css', '/vendor/maplibre-gl.mjs', '/vendor/rtl-text.mjs']);
+});
+
+test('a missing pinned vendor file stops the build with a clear message (rtl-text.mjs, maplibre, empty, no vendor/)', () => {
+  for (const [setup, re] of [
+    ["(v / 'rtl-text.mjs').unlink()", /build stopped: vendor\/ is missing rtl-text\.mjs \(run: sh scripts\/fetch_vendor\.sh\)/],
+    ["(v / 'maplibre-gl.mjs').unlink()", /vendor\/ is missing maplibre-gl\.mjs/],
+    ["(v / 'rtl-text.mjs').write_text('')", /vendor\/ is missing rtl-text\.mjs/],
+    ["shutil.rmtree(v)", /vendor\/ is missing maplibre-gl\.mjs, maplibre-gl-worker\.mjs, maplibre-gl\.css, rtl-text\.mjs/],
+  ]) assert.throws(() => scratch(setup, 'build.copy_vendor(d / "dist")'), e => re.test(e.stderr) && /--dev/.test(e.stderr), setup);
+});
+
+test('--dev builds without a missing vendor file, warns and marks dist NOT-FOR-RELEASE', () => {
+  const out = scratch("(v / 'rtl-text.mjs').unlink()", 'import json; r = build.copy_vendor(d / "dist", True); print(json.dumps([r, (d / "dist/NOT-FOR-RELEASE.txt").read_text()]))');
+  assert.match(out, /warning: vendor\/ is missing rtl-text\.mjs/);
+  const [files, note] = JSON.parse(out.trim().split('\n').pop());
+  assert.ok(!files.includes('/vendor/rtl-text.mjs') && files.includes('/vendor/maplibre-gl.mjs'));
+  assert.match(note, /rtl-text\.mjs/);
+  assert.throws(() => py('build.main(["--release"])'), /unknown option --release/);
+});
+
+test('this dist: release build has every pinned vendor file, a dev build says so', () => {
+  const pins = JSON.parse(py('import json; print(json.dumps(build.vendor_pins()))'));
+  const missing = Object.keys(pins).filter(n => !existsSync(join(DIST, 'vendor', n)));
+  assert.equal(existsSync(join(DIST, 'NOT-FOR-RELEASE.txt')), missing.length > 0, 'missing: ' + missing.join(','));
+});
+
+test('sw.js version changes when only sw.js changes', () => {
+  const v = py(`import pathlib, tempfile, shutil, hashlib
+src = build.ROOT; d = pathlib.Path(tempfile.mkdtemp())
+for x in ('data', 'public', 'src', 'scripts'): shutil.copytree(src / x, d / x)
+if (src / 'vendor').exists(): shutil.copytree(src / 'vendor', d / 'vendor')
+build.ROOT = d
+import re, io, contextlib
+ver = lambda: re.search(r'const V = "([0-9a-f]{12})"', (d / 'dist/sw.js').read_text()).group(1)
+with contextlib.redirect_stdout(io.StringIO()): build.main(['--dev'])
+a = ver(); (d / 'public/sw.js').write_text((d / 'public/sw.js').read_text() + '\\n// changed\\n')
+with contextlib.redirect_stdout(io.StringIO()): build.main(['--dev'])
+print(a, ver())`).trim().split(' ');
+  assert.equal(v.length, 2); assert.notEqual(v[0], v[1]);
 });
 
 test('no Assistant font: no fonts.css link, Rubik preloaded with a metric fallback', () => {
