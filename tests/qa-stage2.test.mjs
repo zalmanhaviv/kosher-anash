@@ -19,29 +19,41 @@ const toThuNight = { g: { periods: [0, 1, 2, 3].map(day24).concat([[4, 0, 0, 5, 
 const exShabbat = { g: { periods: [0, 1, 2, 3, 4].map(day24).concat([[5, 0, 0, 5, 14, 0]]) } };
 
 // The instant a reader takes from "<day> ב־HH:MM": 'מחר' = tomorrow, 'יום X' / 'ביום X' = the next day named X,
-// at HH:MM on that day (00:00 = the start of that day, as on any clock).
+// at HH:MM on that day (00:00 = the start of that day, as on any clock). A night ("הלילה", "מחר בלילה",
+// "יום X בלילה", "מוצאי שבת") at 00:00 is the 00:00 that ends it, i.e. the start of the next day (rule of QA2-1).
 function literal(now, text) {
-  const m = /(היום |מחר |(?:ב)?יום (\S+) )?ב־(\d\d):(\d\d)/.exec(text); if (!m) return null;
+  const m = /(הלילה |היום |מחר (?:בלילה )?|(?:ב)?מוצאי שבת |(?:ב)?יום (\S+) (?:בלילה )?)?ב־(\d\d):(\d\d)/.exec(text); if (!m) return null;
   const d = new Date(now); d.setHours(0, 0, 0, 0);
-  if (m[1] && m[1].startsWith('מחר')) d.setDate(d.getDate() + 1);
+  const w = m[1] || '', night = w.includes('לילה') || w.includes('מוצאי');
+  if (w.startsWith('מחר')) d.setDate(d.getDate() + 1);
+  else if (w.includes('מוצאי')) d.setDate(d.getDate() + (6 - d.getDay() + 7) % 7);
   else if (m[2]) { const dow = DAYS.indexOf(m[2]); let k = (dow - d.getDay() + 7) % 7; d.setDate(d.getDate() + k); }
+  if (night && +m[3] === 0 && +m[4] === 0) d.setDate(d.getDate() + 1);
   d.setHours(+m[3], +m[4]);
   return d;
 }
 
-test('QA2-1 control: an opening at 00:00 names the day of that 00:00 ("נפתח מחר ב־00:00" on Motzei Shabbat)', () => {
+test('QA2-1 control: an opening at 00:00 on Motzei Shabbat points at Sunday 00:00 ("נפתח הלילה ב־00:00")', () => {
   const now = at(6, 21), t = statusAt(exShabbat, now, false).t;
   assert.equal(+literal(now, t), +at(7, 0), t);
 });
 
-// QA2-1: a far close at 00:00 is named by the day before ("עד יום חמישי ב־00:00" for Thursday 24:00). Since the owner's
-// decision 26.11 replaced "בחצות" with "ב־00:00", the same words "מחר ב־00:00" mean two instants 24 hours apart
-// (see the control above). The text must point at the real close instant.
-test('QA2-1 a far close at 00:00 points at the real close (Sunday 23:30, closes Friday 00:00)', { todo: 'QA2-1 hours-shabbat: src/logic.js:57-62' }, () => {
+// QA2-1 (fixed in S2-5): a far close at 00:00 was named by the day before ("עד יום חמישי ב־00:00" for Thursday 24:00),
+// so "מחר ב־00:00" meant two instants 24 hours apart. Now a 00:00 boundary is named by the night it ends.
+test('QA2-1 a far close at 00:00 points at the real close (Sunday 23:30, closes Friday 00:00)', () => {
   const now = at(0, 23, 30), t = statusAt(toThuNight, now, false).t;
   assert.equal(+literal(now, t), +at(5, 0), t);
 });
-test('QA2-1 a far close at 00:00 points at the real close (Wednesday 23:00, closes Friday 00:00)', { todo: 'QA2-1 hours-shabbat: src/logic.js:57-62' }, () => {
+test('QA2-1 a far close at 00:00 points at the real close (Wednesday 23:00, closes Friday 00:00)', () => {
   const now = at(3, 23), t = statusAt(toThuNight, now, false).t;
+  assert.equal(+literal(now, t), +at(5, 0), t);
+});
+
+test('QA2-1 an opening at 00:00 two nights ahead points at the real opening (Friday 15:00, opens Sunday 00:00)', () => {
+  const now = at(5, 15), t = statusAt(exShabbat, now, false).t;
+  assert.equal(+literal(now, t), +at(7, 0), t);
+});
+test('QA2-1 before 06:00 a close at the coming 00:00 names its weekday (Thursday 01:00, closes Friday 00:00)', () => {
+  const now = at(4, 1), t = statusAt(toThuNight, now, false).t;
   assert.equal(+literal(now, t), +at(5, 0), t);
 });

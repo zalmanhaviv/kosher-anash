@@ -128,16 +128,59 @@ test('24 hours except Shabbat: closes only at the published Friday hour', () => 
   assert.equal(statusAt(exShabbat, at(4, 14, 30), true).t, 'פתוח עד למחרת ב־14:00');
   assert.equal(statusAt(exShabbat, at(5, 9), false).t, 'פתוח עד 14:00');
   assert.equal(statusAt(exShabbat, at(5, 13, 20), false).t, 'נסגר בעוד 40 דק׳');
-  assert.equal(statusAt(exShabbat, at(5, 15), false).t, 'סגור עכשיו · נפתח ביום ראשון ב־00:00');
-  assert.equal(statusAt(exShabbat, at(6, 21), false).t, 'נפתח מחר ב־00:00');
+  assert.equal(statusAt(exShabbat, at(5, 15), false).t, 'סגור עכשיו · נפתח במוצאי שבת ב־00:00');
+  assert.equal(statusAt(exShabbat, at(6, 21), false).t, 'נפתח הלילה ב־00:00');
+  assert.equal(statusAt(exShabbat, at(6, 21), true).t, 'נפתח ב־00:00');
 });
 
-test('a far close at 00:00 is told as midnight of the day before', () => {
+// QA2-1 / DECISIONS 26.11: a boundary at exactly 00:00 is named by the night it ends ("<day> בלילה ב־00:00"),
+// for a close and an opening alike; tonight's is the hour alone / "הלילה", except before 06:00 (weekday named)
+test('a far close at 00:00 is named by the night it ends', () => {
   const p = { g: { periods: [0, 1, 2, 3].map(day24).concat([[4, 0, 0, 5, 0, 0], [5, 6, 0, 5, 16, 0]]) } }; // 24h until Thursday night
-  assert.equal(statusAt(p, at(0, 23, 30), false).t, 'פתוח עד יום חמישי ב־00:00');
-  assert.equal(statusAt(p, at(3, 23), false).t, 'פתוח עד מחר ב־00:00');
-  assert.equal(statusAt(p, at(4, 0), false).t, 'פתוח עד 00:00');
+  assert.equal(statusAt(p, at(0, 23, 30), false).t, 'פתוח עד יום חמישי בלילה ב־00:00');
+  assert.equal(statusAt(p, at(3, 23), false).t, 'פתוח עד מחר בלילה ב־00:00');
+  assert.equal(statusAt(p, at(3, 23), true).t, 'פתוח עד למחרת בלילה ב־00:00');
+  assert.equal(statusAt(p, at(4, 0), false).t, 'פתוח עד יום חמישי בלילה ב־00:00');
+  assert.equal(statusAt(p, at(4, 5, 59), false).t, 'פתוח עד יום חמישי בלילה ב־00:00');
+  assert.equal(statusAt(p, at(4, 6), false).t, 'פתוח עד 00:00');
   assert.equal(statusAt(p, at(4, 23, 15), false).t, 'נסגר בעוד 45 דק׳');
+});
+
+test('an opening at 00:00 is named by the night it ends', () => {
+  const p = { g: { periods: [[3, 0, 0, 3, 10, 0], [5, 0, 0, 5, 2, 0]] } }; // Wednesday 00:00–10:00, Friday 00:00–02:00
+  assert.equal(statusAt(p, at(2, 21), false).t, 'נפתח הלילה ב־00:00');
+  assert.equal(statusAt(p, at(2, 21), true).t, 'נפתח ב־00:00');
+  assert.equal(statusAt(p, at(2, 2), false).t, 'סגור עכשיו · נפתח ביום שלישי בלילה ב־00:00');
+  assert.equal(statusAt(p, at(1, 12), false).t, 'סגור עכשיו · נפתח מחר בלילה ב־00:00');
+  assert.equal(statusAt(p, at(1, 12), true).t, 'סגור בשעה הזו · נפתח למחרת בלילה ב־00:00');
+  assert.equal(statusAt(p, at(0, 12), false).t, 'סגור עכשיו · נפתח ביום שלישי בלילה ב־00:00');
+  // a time that is not 00:00 keeps the calendar day
+  const q = { g: { periods: [[3, 0, 30, 3, 10, 0]] } };
+  assert.equal(statusAt(q, at(2, 21), false).t, 'נפתח מחר ב־00:30');
+});
+
+test('open through Shabbat until 00:00 on Sunday: "מוצאי שבת"', () => {
+  const p = { g: { periods: [[4, 8, 0, 0, 0, 0]] } }; // Thursday 08:00 – Sunday 00:00
+  assert.equal(statusAt(p, at(4, 10), false).t, 'פתוח עד מוצאי שבת ב־00:00');
+  assert.equal(statusAt(p, at(5, 10), false).t, 'פתוח עד מוצאי שבת ב־00:00');
+  assert.equal(statusAt(p, at(6, 20), false).t, 'פתוח עד 00:00');
+});
+
+test('"היום"/"מחר"/"הלילה" follow Israel time around midnight, not the device clock zone', () => {
+  const p = weekday(9, 0, 22, 0); // Sunday–Thursday 09:00–22:00
+  const z = { g: { periods: [[3, 0, 0, 3, 10, 0]] } }; // Wednesday 00:00–10:00
+  // 24 Nov 2026 is winter time (UTC+2): Tuesday 23:59 Israel = 21:59 UTC, Wednesday 00:01 Israel = 22:01 UTC
+  const tue2359 = IL(new Date(Date.UTC(2026, 10, 24, 21, 59))), wed0001 = IL(new Date(Date.UTC(2026, 10, 24, 22, 1)));
+  assert.equal(tue2359.getDay(), 2); assert.equal(wed0001.getDay(), 3);
+  assert.equal(statusAt(p, tue2359, false).t, 'נפתח מחר ב־09:00');
+  assert.equal(statusAt(p, wed0001, false).t, 'נפתח היום ב־09:00');
+  assert.equal(statusAt(z, tue2359, false).t, 'נפתח הלילה ב־00:00');
+  assert.equal(statusAt(z, wed0001, false).t, 'פתוח עד 10:00');
+  // summer time (UTC+3): 1 July 2026 is a Wednesday; 20:59 UTC = 23:59 Israel, 21:01 UTC = Thursday 00:01
+  const s1 = IL(new Date(Date.UTC(2026, 6, 1, 20, 59))), s2 = IL(new Date(Date.UTC(2026, 6, 1, 21, 1)));
+  assert.equal(s1.getDay(), 3); assert.equal(s2.getDay(), 4);
+  assert.equal(statusAt(p, s1, false).t, 'נפתח מחר ב־09:00');
+  assert.equal(statusAt(p, s2, false).t, 'נפתח היום ב־09:00');
 });
 
 test('back-to-back periods across midnight are one opening (08:00–00:00 then 00:00–02:00)', () => {
