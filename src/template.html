@@ -126,7 +126,7 @@ text{font-family:var(--font)!important}
 .item .nm{font-size:var(--fs-input);font-weight:var(--fw-med);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .l2{font-size:var(--fs-sm);color:var(--sub);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .l3{display:flex;flex-wrap:wrap;gap:var(--s1) var(--s2);font-size:var(--fs-sm);margin-top:3px;align-items:center;color:var(--sub)}
-.item .kh{font-weight:var(--fw-med);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.item .kh{font-weight:var(--fw-med);max-width:100%;overflow-wrap:anywhere} /* rule 5: kashrut in full, wraps to a second line */
 .item .l3 [class^="st-"]{display:inline-block;padding:1px var(--s2);border-radius:var(--r-xs);font-weight:var(--fw-med)}
 .item .ds{flex:0 0 auto;align-self:flex-start;font-size:var(--fs-sm);font-weight:var(--fw-med);color:var(--sub);text-align:left;margin-top:2px;font-variant-numeric:tabular-nums}
 .item .src{color:var(--warn-ink);font-weight:var(--fw-med);margin-top:3px}
@@ -440,7 +440,7 @@ function itemHTML({p, st, d}) {
     <span class="pinx b-${p.hc}">${ico(p)}<i aria-hidden="true">${HL[p.hc]}</i></span>
     <span class="bd">
       <div class="nm">${esc(p.n)}</div>
-      <div class="l2">${esc([p.s, p.c].filter(Boolean).join(', '))}</div>
+      <div class="l2">${esc([p.f, [p.s, p.c].filter(Boolean).join(', ')].filter(Boolean).join(' · '))}</div>
       <div class="l3"><span class="kh k-${p.hc}">${esc(shortH(p))}</span>${p.t.length ? `<span style="color:var(--sub)">${esc(p.t.join('/'))}</span>` : ''}${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}</div>
       ${doubtful(p) ? `<div class="src">${DOUBT}</div>` : ''}
     </span>
