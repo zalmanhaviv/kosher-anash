@@ -1050,7 +1050,7 @@ describe('stage 2 QA', () => {
   test('QA2-8 360px: the search placeholder is not cut ("…אוכל או רו")', async () => {
     const r = await go('/', { viewport: PHONE360, mobile: true, time: TUE });
     const fit = await r.page.evaluate(() => { const q = document.getElementById('q'), cs = getComputedStyle(q), c = document.createElement('canvas').getContext('2d');
-      c.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const w = c.measureText(q.placeholder).width;
+      const ph = getComputedStyle(q, '::placeholder'); c.font = ph.fontWeight + ' ' + ph.fontSize + ' ' + ph.fontFamily; const w = c.measureText(q.placeholder).width;
       return { w: Math.ceil(w), box: Math.floor(q.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) }; });
     assert.ok(fit.w <= fit.box, 'placeholder ' + fit.w + 'px in a ' + fit.box + 'px field');
     await done(r);
