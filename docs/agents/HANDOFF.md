@@ -41,3 +41,11 @@ P0-4 (בדיקת נתונים חיים מלאה + escaping של t) ו-P0-5 (נו
 | 26.11 | "מתי?" לא מציע שישי אחרי 14:00 (שבת) ולא זמן שעבר | map-ux (S2-1) |
 
 שאלות לבעלים: (1) לאשר את נוסח המרחק המשוער שלמעלה. (2) "מקומות אוכל" כשם לסוג "מסעדה" בסינון (היה "מסעדות ומאפיות"). (3) "בחצות" – לא שונה, עדיין ממתין.
+
+## S2-2 perf-pwa (26.11) – branch `agent/perf-pwa/S2-2` (נדחף, בלי PR, בלי deploy)
+בוצע: הסרת `/vendor/fonts.css` (Assistant), preload ל-Rubik ו-"Rubik Fallback" עם מידות Rubik, ערכי בדיקת הנתונים החיים מתוך `data/schema.json` (`/*SCHEMA*/`, הבנייה נעצרת כשיש סטייה), vendor נעול ב-sha256, SW חדש (גרסה מהבנייה, precache מלא, נתונים עקביים ל-rev בלי רשת, אריחים ריקים לאזור שלא נצפה, תקרת אריחים, עדכון בלי טעינה מחדש), רישום ה-SW אחרי שהמפה נטענת, ייחוס המפה עם הציור הראשון (הוא היה רכיב ה-LCP), צבעי manifest, ותקציב gzip בבנייה (P1-14, P1-15, בקשות design-system ו-map-ux).
+מספרים (slow 4G, פי 4 CPU, ‏390×844, חציון 7 ריצות לסירוגין): LCP ‏1352→872ms, CLS הגרוע 0.027→0.001, TBT ‏647→652 (רועש), מפה מוכנה 5737→5219ms. הזזת מפה: 60fps ב-CPU רגיל. בפי 4 הממוצע 20–23ms, אבל זה הציור של MapLibre (SwiftShader). הסמנים מוסיפים לכל היותר 0.6ms. פירוט ב-`docs/perf/stage2.md`.
+קבצים: `public/sw.js`, `public/manifest.webmanifest`, `scripts/build.py`, `scripts/fetch_vendor.sh` (שלי). `src/template.html` לפי הוראת המתאם: head, ‏@font-face ו-`--font` בבלוק הסגנון, `loadML`/`initMap`/רישום SW/`/*SCHEMA*/` בסקריפט. `tests/perf/*` חדש (qa). `docs/perf/stage2.md`, ‏CHANGELOG, ‏HANDOFF ו-REQUESTS לפי ההוראה.
+בדיקות: validate 0 שגיאות, contrast 60 זוגות (הנמוך 5.07), logic 28/28 בשלושה אזורי זמן, flags --check 0, build עובר, e2e 79/79, ‏tests/perf/build 6/6, ‏tests/perf/sw 6/6. ב-visual כל הצילומים ≤0.39%, כמו לפני.
+לא נעשה / פתוח: נעילת הגיבוב של rtl-text (unpkg חסום מכאן). מדידה בטלפון אמיתי ו-INP. הוספת tests/perf ל-CI (בקשה ל-qa). P1-16 כבר טופל ב-S2-1. P2-4 (הדרכת iOS) טופל ב-S2-1 ולא נדרש בו שינוי PWA.
+סיכונים: (1) הגיבובים של MapLibre נלקחו מהעותק המקומי. אם הקבצים באתר החי שונים, הבנייה תיעצר (בכוונה). (2) `skipWaiting`: אם דף ישן נפתח מהמטמון אחרי 4 ש׳ (קליטה חלשה) וה-SW החדש מופעל באמצע, הדף הישן יקבל vendor חדש. זה בטוח כל עוד MapLibre נשאר 6.x. (3) ה-SW נבדק רק ב-Chrome, לא ב-iOS Safari. (4) הגופן החלופי כויל מול Arial/Liberation. באנדרואיד אין Arial, ושם נשאר system-ui כמו קודם.
