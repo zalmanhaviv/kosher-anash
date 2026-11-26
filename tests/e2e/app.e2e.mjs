@@ -129,8 +129,10 @@ describe('chips', () => {
       assert.equal(await r.page.textContent('#cOpenT'), 'פתוח עכשיו · ' + openN);
       await r.page.click('#cOpen');
       assert.equal(await r.page.getAttribute('#cOpen', 'aria-pressed'), 'true');
-      const shown = restaurants.filter(p => !/[nx]/.test(st(p, t).s));
-      assert.equal(await sub(r.page), nPl(shown.length));
+      const shown = restaurants.filter(p => !/[nx]/.test(st(p, t).s)), noInfo = shown.filter(p => st(p, t).s === 'u').length;
+      // the header says how many are open (the same number as the chip) and how many have no hours (S2-1, P1-10)
+      assert.equal(await sub(r.page), `${openN} פתוחים` + (noInfo ? ` · ${noInfo} בלי מידע על שעות` : ''));
+      assert.equal(openN + noInfo, shown.length);
       // open places first (r=0), then 'opens soon', then no-info
       const first = await r.page.$$eval('#sbody .item .l3 [class^="st-"]', a => a.slice(0, 5).map(x => x.className));
       assert.ok(first.every(c => /st-[ys]/.test(c)), first.join());
@@ -347,7 +349,7 @@ describe('town and near', () => {
     assert.equal(await sub(r.page), nPl(exp.length));
     const heads = await r.page.$$eval('#sbody .sec-h', a => a.map(x => x.textContent));
     assert.equal(heads[0], 'בצפת');
-    if (exp.some(p => p.c !== 'צפת')) assert.ok(heads.includes('בסביבה'));
+    if (exp.some(p => p.c !== 'צפת')) assert.ok(heads.includes('בסביבה · המרחק ממרכז צפת'), heads.join('|'));
     await r.page.reload(); await r.page.waitForSelector('#sbody .item');
     assert.equal(await title(r.page), 'צפת והסביבה', 'town kept');
     await done(r);
@@ -514,7 +516,16 @@ describe('offline and install', () => {
     const r = await go('/', { viewport: PHONE, mobile: true, ua: IPHONE_UA, time: TUE, ls: { kl3_v: JSON.stringify({ n: 1, d: 'Mon Nov 30 2026' }) } });
     assert.ok(await r.page.isVisible('.instc'));
     await r.page.click('#instY');
-    assert.match(await r.page.textContent('#toast'), /הוספה למסך הבית/);
+    // an illustrated guide in a sheet that stays until closed, not a 2-second toast (S2-1, P2-4)
+    await r.page.waitForSelector('#dlg.on');
+    assert.equal(await r.page.textContent('#dlgT'), 'הוספה למסך הבית');
+    assert.match(await r.page.textContent('#dlg'), /כפתור השיתוף[\s\S]*הוספה למסך הבית/);
+    assert.ok(await r.page.locator('#dlg svg').count() >= 2, 'icons for the steps');
+    await r.page.waitForTimeout(2600); assert.ok(await r.page.isVisible('#dlg.on'), 'still open');
+    await r.page.click('#iosOk'); await r.page.waitForFunction(() => !document.getElementById('dlg').classList.contains('on'));
+    // the list-end button opens the same guide
+    await r.page.click('#inst'); await r.page.waitForSelector('#dlg.on');
+    assert.equal(await r.page.textContent('#dlgT'), 'הוספה למסך הבית');
     await done(r);
   });
 });
@@ -648,6 +659,282 @@ describe('layout and accessibility', () => {
     const r = await go('/', { viewport: PHONE, mobile: true, reduced: true, time: TUE });
     const d = await r.page.evaluate(() => ['sheet', 'dlg', 'toast'].map(id => getComputedStyle(document.getElementById(id)).transitionDuration));
     assert.ok(d.every(x => x.split(',').every(v => parseFloat(v) === 0)), d.join('|'));
+    await done(r);
+  });
+});
+
+// ================= stage 2, map-ux (S2-1): AUDIT P1-8…P1-16, P2-3/4/6 =================
+describe('S2-1 map-ux', () => {
+  const back = async (page, until) => { await page.evaluate(() => history.back()); await page.waitForFunction(until); await page.waitForTimeout(150); };
+  const isCard = () => !!document.querySelector('#sbody .det'), isList = () => !!document.querySelector('#sbody .item') && !document.querySelector('#sbody .det');
+  const exactP = p => !!(p.g && p.g.loc) && p.g.prec !== 'street' && !(p.g.q || []).includes('approx-loc');
+
+  test('P1-8 Back closes the card, not the app; repeated open/close adds no entries', async () => {
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
+    const { page } = r; const len0 = await page.evaluate(() => history.length);
+    await halfSheet(page);
+    await page.click('#sbody .item'); await page.waitForSelector('.det');
+    assert.equal(await page.evaluate(() => history.length), len0 + 1, 'one entry for the card');
+    await back(page, () => !document.querySelector('#sbody .det'));
+    assert.ok(await page.evaluate(isList), 'list shown again');
+    assert.equal(await page.evaluate(() => location.href), ORIGIN + '/', 'still in the app');
+    for (let i = 0; i < 4; i++) { await page.click('#sbody .item'); await page.waitForSelector('.det'); await page.click('#back'); await page.waitForSelector('#sbody .item'); await page.waitForTimeout(80); }
+    await page.click('#sbody .item'); await page.waitForSelector('.det'); await page.keyboard.press('Escape'); await page.waitForSelector('#sbody .item'); await page.waitForTimeout(150);
+    assert.equal(await page.evaluate(() => history.length), len0 + 1, 'no history spam');
+    assert.equal(await page.evaluate(() => (history.state && history.state.kd) | 0), 0, 'back on the base entry');
+    await done(r);
+  });
+  test('P1-8 Back closes a dialog first, then the card under it; forward reopens the card', async () => {
+    const r = await go('/', { viewport: DESK, time: TUE });
+    const { page } = r;
+    await page.click('#sbody .item'); await page.waitForSelector('.det'); const nm = await page.textContent('.det h3');
+    await page.click('#cWhen'); await page.waitForSelector('#dlg.on');
+    await back(page, () => !document.getElementById('dlg').classList.contains('on'));
+    assert.ok(await page.evaluate(isCard), 'card still open under the closed dialog');
+    await back(page, () => !document.querySelector('#sbody .det'));
+    await page.evaluate(() => history.forward()); await page.waitForSelector('.det');
+    assert.equal(await page.textContent('.det h3'), nm, 'forward = the same card');
+    await done(r);
+  });
+  test('P1-8 a filter change inside the dialog closes the card: both entries go away', async () => {
+    const r = await go('/', { viewport: DESK, time: TUE });
+    const { page } = r; const len0 = await page.evaluate(() => history.length);
+    await page.click('#sbody .item'); await page.waitForSelector('.det');
+    await page.click('#fBtn'); await page.waitForSelector('#dlg.on');
+    await page.click('#dlg [data-hc="chabad"]'); await page.click('#fOk');
+    await page.waitForSelector('#sbody .item'); await page.waitForTimeout(200);
+    assert.equal(await page.evaluate(() => (history.state && history.state.kd) | 0), 0);
+    assert.ok(await page.evaluate(() => history.length) <= len0 + 2);
+    await done(r);
+  });
+  test('P1-8 shared link ?p=: Back goes to the list (address stays clean)', async () => {
+    const r = await go('/?p=347ac19', { viewport: PHONE, mobile: true, time: TUE });
+    const { page } = r;
+    assert.ok(await page.evaluate(isCard));
+    await back(page, () => !document.querySelector('#sbody .det'));
+    assert.ok(await page.evaluate(isList));
+    assert.equal(await page.evaluate(() => location.pathname + location.search), '/');
+    await done(r);
+  });
+  test('P1-8 phone sheet at full height: Back lowers it', async () => {
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
+    const { page } = r;
+    const ty = () => page.evaluate(() => document.getElementById('sheet').style.transform);
+    await page.evaluate(() => { document.getElementById('sbody').scrollTop = 10; }); await page.waitForTimeout(400);
+    assert.equal(await ty(), 'translateY(0px)', 'full');
+    await back(page, () => document.getElementById('sheet').style.transform !== 'translateY(0px)');
+    assert.equal(await page.evaluate(() => location.href), ORIGIN + '/');
+    await done(r);
+  });
+
+  test('P1-9 chosen town (no GPS): no walking time, town rows without distance, others whole km from the centre', async () => {
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
+    const { page } = r;
+    await page.click('#ctaCity'); await page.selectOption('#cSel', 'צפת'); await page.click('#cOk');
+    const rows = await page.$$eval('#sbody .item', a => a.map(x => ({ u: x.dataset.u, ds: x.querySelector('.ds').textContent })));
+    assert.ok(rows.length > 10);
+    for (const x of rows) {
+      const p = DATA.find(q => q.u === x.u);
+      assert.ok(!/הליכה/.test(x.ds), 'no walking time from a town centre: ' + x.ds);
+      if (p.c === 'צפת') assert.equal(x.ds, '', p.n); else assert.match(x.ds, /^\d+ ק״מ$/, p.n);
+    }
+    await done(r);
+  });
+  test('P1-9 near me: approximate places say "בערך" (or the town) and come after exact ones in their band', async () => {
+    const geo = { latitude: 31.7525, longitude: 34.7712 }; // Kiryat Malachi: two places there have only the town
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE, geo });
+    const { page } = r;
+    await page.waitForFunction(() => document.getElementById('sTitle').textContent === 'קרוב אליך');
+    await page.click('#more'); await page.click('#more');
+    const secs = await page.evaluate(() => { const out = []; let cur = null; for (const el of document.querySelectorAll('#sbody > *')) { if (el.classList.contains('sec-h')) { cur = { h: el.textContent, rows: [] }; out.push(cur); } else if (el.classList.contains('item') && cur) cur.rows.push({ u: el.dataset.u, ds: el.querySelector('.ds').textContent }); } return out; });
+    let approxSeen = 0;
+    for (const s of secs.filter(s => /הליכה|ק״מ|רחוק/.test(s.h))) {
+      let afterApprox = false;
+      for (const x of s.rows) {
+        const p = DATA.find(q => q.u === x.u);
+        if (exactP(p)) { assert.ok(!afterApprox, `exact ${p.n} after an approximate place in "${s.h}"`); assert.ok(!/בערך/.test(x.ds), x.ds); }
+        else { afterApprox = true; approxSeen++; assert.match(x.ds, /^(בערך [\d.]+ ק״מ|ב.+)$/, p.n + ': ' + x.ds); assert.ok(!/הליכה/.test(x.ds)); }
+      }
+      if (s.h === 'במרחק הליכה') assert.ok(s.rows.every(x => exactP(DATA.find(q => q.u === x.u))), 'walking band: exact places only');
+    }
+    assert.ok(approxSeen >= 2, 'approximate places checked: ' + approxSeen);
+    await done(r);
+  });
+  test('P1-9 card: approximate location said at the top; no street -> "אין כתובת במאגר"', async () => {
+    const r = await go('/?p=d5c9ab7', { viewport: PHONE, mobile: true, time: TUE }); // town only, has a street
+    assert.match(await r.page.textContent('.det .addr + .src'), /המיקום במפה משוער, לפי מרכז הישוב/);
+    await done(r);
+    const noStreet = DATA.find(p => !p.s && !(p.g && p.g.loc));
+    const r2 = await go('/?p=' + noStreet.u, { viewport: PHONE, mobile: true, time: TUE });
+    assert.equal(await r2.page.textContent('.det .addr'), noStreet.c + ' · אין כתובת במאגר');
+    await done(r2);
+    const street = DATA.find(p => p.g && p.g.prec === 'street');
+    const r3 = await go('/?p=' + street.u, { viewport: PHONE, mobile: true, time: TUE });
+    assert.match(await r3.page.textContent('.det .addr + .src'), /ברמת הרחוב/);
+    await done(r3);
+  });
+
+  test('P1-10 open-now count follows the town view and matches the list header', async () => {
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
+    const { page } = r;
+    await page.click('#ctaCity'); await page.selectOption('#cSel', 'צפת'); await page.click('#cOk');
+    const c = cityLL('צפת'), view = restaurants.filter(p => p.c === 'צפת' || (LLof(p) && km(c, LLof(p)) <= 12));
+    const openN = view.filter(p => /[ys]/.test(st(p, TUE).s)).length;
+    assert.ok(openN < restaurants.filter(p => /[ys]/.test(st(p, TUE).s)).length);
+    assert.equal(await page.textContent('#cOpenT'), 'פתוח עכשיו · ' + openN);
+    await page.click('#cOpen');
+    assert.match(await sub(page), new RegExp('^' + openN + ' פתוחים'));
+    assert.equal(await page.textContent('#cOpenT'), 'פתוח עכשיו · ' + openN, 'same number with the chip on');
+    await typeQ(page, 'פיצה');
+    const pz = view.filter(p => /[ys]/.test(st(p, TUE).s) && hay(p).includes(L.normText('פיצה'))).length;
+    assert.equal(await page.textContent('#cOpenT'), 'פתוח עכשיו · ' + pz, 'and the search');
+    await done(r);
+  });
+
+  test('P1-11 periodic refresh keeps focus and list scroll', async () => {
+    const r = await go('/', { viewport: DESK, time: TUE, clockInstall: true });
+    const { page } = r;
+    await page.evaluate(() => { const sb = document.getElementById('sbody'); sb.querySelectorAll('.item')[6].focus(); sb.scrollTop = 300; });
+    const foc = () => page.evaluate(() => document.activeElement.classList.contains('item') ? document.activeElement.querySelector('.nm').textContent + '|' + document.activeElement.dataset.id : 'not an item: ' + document.activeElement.tagName);
+    const u = await foc(), y = await page.evaluate(() => document.getElementById('sbody').scrollTop);
+    assert.match(u, /\|\d+$/);
+    const marker = await page.evaluate(() => { document.querySelector('#sbody .item').__old = 1; return 1; });
+    await page.clock.runFor(61000);
+    assert.equal(await page.evaluate(() => !!document.querySelector('#sbody .item').__old), false, 'the list was rendered again');
+    assert.equal(await foc(), u, 'focus on the same place');
+    assert.equal(await page.evaluate(() => document.getElementById('sbody').scrollTop), y, 'scroll kept');
+    assert.ok(marker);
+    await done(r);
+  });
+  test('P1-11 refresh with an open card and with the search caret', async () => {
+    const r = await go('/', { viewport: DESK, time: TUE, clockInstall: true });
+    const { page } = r;
+    await page.click('#sbody .item'); await page.waitForSelector('.det'); const nm = await page.textContent('.det h3');
+    await page.focus('#share');
+    await page.evaluate(() => document.querySelector('.det').__old = 1);
+    await page.clock.runFor(61000);
+    assert.equal(await page.evaluate(() => !!document.querySelector('.det').__old), false, 'the card was refreshed');
+    assert.equal(await page.textContent('.det h3'), nm, 'card stays open');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'share');
+    await page.click('#back'); await page.waitForSelector('#sbody .item');
+    await page.focus('#q'); await page.keyboard.type('פיצה צפת'); await page.clock.runFor(300);
+    await page.evaluate(() => document.getElementById('q').setSelectionRange(2, 4));
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // returning to the app refreshes too
+    await page.clock.runFor(61000);
+    assert.deepEqual(await page.evaluate(() => [document.activeElement.id, document.getElementById('q').selectionStart, document.getElementById('q').selectionEnd]), ['q', 2, 4]);
+    await done(r);
+  });
+
+  test('search typos: one-letter mistakes and sound-alike letters, with a note; exact words stay exact', async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    const { page } = r;
+    const pizza = search('פיצה').length;
+    for (const q of ['פציה', 'פיזה']) {
+      await typeQ(page, q);
+      assert.match(await page.textContent('#sbody .note'), /לא נמצאה התאמה מדויקת/);
+      const fs = await page.$$eval('#sbody .item', a => a.slice(0, 20).map(x => x.dataset.u));
+      assert.ok(fs.every(u => hay(DATA.find(p => p.u === u)).includes('פיצה')), q + ': closest (pizza) first');
+      assert.ok(+((await sub(page)).match(/\d+/) || [0])[0] >= pizza, q);
+    }
+    await typeQ(page, 'שושי'); // ס/ש sound alike
+    const su = await page.$$eval('#sbody .item', a => a.map(x => x.dataset.u));
+    assert.ok(su.length >= search('סושי').length);
+    assert.ok(su.slice(0, search('סושי').length).every(u => hay(DATA.find(p => p.u === u)).includes('סושי')), 'sushi first');
+    await typeQ(page, 'פיצה');
+    assert.equal(await page.locator('#sbody .note:has-text("התאמה מדויקת")').count(), 0, 'no note for an exact word');
+    assert.equal(await sub(page), nPl(pizza));
+    await typeQ(page, 'פיתה'); // found exactly somewhere: never widened to 'פיצה'
+    assert.equal(await sub(page), nPl(search('פיתה').length));
+    await done(r);
+  });
+
+  test('empty list offers ways out with real counts (no dead buttons)', async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    const { page } = r;
+    await page.click('#ctaCity'); await page.selectOption('#cSel', 'צפת'); await page.click('#cOk');
+    const far = restaurants.find(p => p.c === 'אשדוד' && search(p.n).every(q => q.c !== 'צפת' && km(cityLL('צפת'), LLof(q) || cityLL(q.c)) > 12));
+    await typeQ(page, far.n);
+    assert.match(await page.textContent('#sbody .empty'), /לא נמצאו מקומות/);
+    const btns = await page.$$eval('#sbody [data-widen]', a => a.map(x => x.textContent));
+    assert.ok(btns.some(t => /^חיפוש בכל הארץ · \d+$/.test(t)), btns.join('|'));
+    const n = +btns.find(t => t.startsWith('חיפוש בכל הארץ')).match(/\d+$/)[0];
+    await page.click('#sbody [data-widen]:has-text("חיפוש בכל הארץ")');
+    assert.equal(await sub(page), nPl(n)); assert.equal(await title(page), 'מקומות כשרים');
+    await typeQ(page, 'קקקזזז');
+    for (const b of await page.$$eval('#sbody [data-widen]', a => a.map(x => x.textContent))) assert.match(b, / · [1-9]\d*$/, 'every offer has results');
+    assert.ok(await page.isVisible('#clr'));
+    await done(r);
+  });
+
+  test('"מתי?" quick picks: never in the past, none on Friday evening', async () => {
+    const picks = async t => { const r = await go('/', { viewport: PHONE, time: t }); await r.page.click('#cWhen'); await r.page.waitForSelector('#dlg.on'); const a = await r.page.$$eval('#dlg [data-at], #dlg [data-now]', x => x.map(b => b.textContent)); await done(r); return a; };
+    assert.deepEqual(await picks(TUE), ['עכשיו', 'שישי בבוקר 09:00', 'שישי בצהריים 12:00', 'היום בערב 19:00']);
+    assert.deepEqual(await picks(TUE_NIGHT), ['עכשיו', 'שישי בבוקר 09:00', 'שישי בצהריים 12:00']);
+    assert.deepEqual(await picks(FRI), ['עכשיו'], 'Friday 12:00: the morning has passed, no Friday evening');
+    assert.deepEqual(await picks(il(2026, 11, 27, 8, 0)), ['עכשיו', 'היום בבוקר 09:00', 'היום בצהריים 12:00']);
+  });
+  test('P1-13 one name per thing: kind "מקומות אוכל", food type labels as on the chips', async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    await r.page.click('#fBtn'); await r.page.waitForSelector('#dlg.on');
+    assert.equal((await r.page.textContent('#dlg [data-kind="מסעדה"]')).trim(), 'מקומות אוכל');
+    for (const [f, label] of [['מסעדה', 'מסעדות'], ['מאפייה וקונדיטוריה', 'מאפיות'], ['המבורגר וגריל', 'בשרים וגריל']]) {
+      assert.equal((await r.page.textContent(`#dlg [data-food="${f}"]`)).trim(), label);
+      assert.equal((await r.page.textContent(`.chip[data-f="${f}"]`)).trim(), label);
+    }
+    await done(r);
+  });
+
+  test('P2-3 hours table: 07:00 format, whole day = "פתוח 24 שעות", today line on top', async () => {
+    const p = DATA.find(x => x.u === '347ac19');
+    assert.ok(p.g.week.some(w => /0:00–24:00/.test(w)));
+    const r = await go('/?p=347ac19', { viewport: PHONE, mobile: true, time: TUE });
+    const hrs = await r.page.textContent('.det .hrs');
+    assert.match(hrs, /פתוח 24 שעות/); assert.ok(!/(^|[^\d])\d:\d\d/.test(hrs), hrs);
+    assert.match(await r.page.textContent('.det .dl h4'), /^שעות פתיחה · היום: /);
+    await done(r);
+  });
+  test('P2-6 privacy line in the footer', async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    assert.match(await r.page.textContent('.foot'), /המיקום שלך נשאר במכשיר ולא נשמר[\s\S]*OpenFreeMap[\s\S]*GitHub/);
+    await done(r);
+  });
+
+  test('live data: meta first, places only when rev went up; a new town from cities.json gets its centre; aka keeps old links', async () => {
+    const r0 = await go('/', { viewport: PHONE, time: TUE, waitLive: true });
+    assert.ok(!r0.log.req.some(u => u.endsWith('/places.json')), 'same rev: places.json not downloaded');
+    await done(r0);
+    const places = structuredClone(DATA), cities = { ...CITIES, 'ישוב בדיקה': [32.5, 35.0] };
+    const old = places[2].u; places[2].u = 'abcdef12'; places[2].aka = [old]; places[2].c = 'ישוב בדיקה'; places[2].n = 'מקום אוחד';
+    const live = { places, cities, meta: { ...META, rev: META.rev + 1, updated: '2026-11-30' } };
+    const r = await go('/?p=' + old, { viewport: PHONE, time: TUE, waitLive: true, liveData: live, ls: { kl3_fav: JSON.stringify([old]) } });
+    const { page } = r;
+    await page.waitForFunction(() => document.querySelector('.det h3') && document.querySelector('.det h3').textContent === 'מקום אוחד');
+    assert.equal(await page.getAttribute('#fav', 'aria-pressed'), 'true', 'favourite under the old id is still a favourite');
+    assert.deepEqual(JSON.parse(await page.evaluate(() => localStorage.getItem('kl3_fav'))), ['abcdef12'], 'stored id migrated');
+    await page.click('#back'); await page.click('#ctaCity'); await page.selectOption('#cSel', 'ישוב בדיקה'); await page.click('#cOk');
+    assert.equal(await title(page), 'ישוב בדיקה והסביבה');
+    assert.ok((await names(page)).includes('מקום אוחד'));
+    await done(r);
+  });
+
+  test('P1-12 map: places with only a town are one badge per town; markers survive a map move; list hover lifts the marker', { skip: !vendorPresent() && 'needs the GL map' }, async () => {
+    const r = await go('/', { viewport: DESK, time: TUE, reduced: true });
+    const { page } = r; await mapReady(page);
+    await page.click('#fBtn'); await page.waitForSelector('#dlg.on'); await page.selectOption('#fCity', 'קריית מלאכי'); await page.keyboard.press('Escape');
+    await page.waitForFunction(() => [...document.querySelectorAll('#map .mk.ap')].some(e => e.textContent.trim() === '2'), null, { timeout: 8000 });
+    const lbl = await page.$$eval('#map .mkw', a => a.map(x => x.textContent));
+    assert.ok(lbl.some(t => t.includes('2 מקומות בקריית מלאכי')), 'town badge label');
+    const townOnly = DATA.filter(p => p.c === 'קריית מלאכי' && !(p.g && p.g.loc) && p.k.startsWith('מסעדה'));
+    assert.equal(townOnly.length, 2);
+    await page.evaluate(() => document.querySelectorAll('#map .maplibregl-marker').forEach(m => { m.__keep = 1; }));
+    await page.focus('#map canvas'); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(600);
+    const kept = await page.evaluate(() => { const a = [...document.querySelectorAll('#map .maplibregl-marker')]; return [a.filter(m => m.__keep).length, a.length]; });
+    assert.ok(kept[0] > 0 && kept[0] >= kept[1] - 3, 'markers reused after a move: ' + kept);
+    const p = DATA.find(x => x.c === 'קריית מלאכי' && exactP(x) && x.k.startsWith('מסעדה') && st(x, TUE).s !== 'x');
+    await page.hover(`#sbody .item[data-u="${p.u}"]`);
+    await page.waitForFunction(() => document.querySelector('#map .mkw.hov'), null, { timeout: 3000 });
+    assert.equal(await page.$$eval('#map .mkw.hov', a => a.length), 1, 'hovered row lifts one marker');
+    await page.mouse.move(5, 790); await page.waitForFunction(() => !document.querySelector('#map .mkw.hov'));
     await done(r);
   });
 });

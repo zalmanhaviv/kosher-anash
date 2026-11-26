@@ -304,7 +304,9 @@ const HC = { chabad:'חב״ד', eda:'העדה החרדית', landa:'לנדא', p
 const HCOL = { chabad:'var(--chabad)', eda:'var(--eda)', landa:'var(--landa)', products:'var(--products)' }; // from the design tokens
 const HL = { chabad:'ח', eda:'ע', landa:'ל', products:'מ' };
 /*LOGIC*/
-const KINDS = [['מסעדה','מסעדות ומאפיות'],['אוכל לשבת','אוכל מוכן לשבת'],['קייטרינג','קייטרינג'],['אולם אירועים','אולמות אירועים'],['מלון','בתי מלון'],['בית הארחה','בתי הארחה']];
+// 'מסעדה' as a kind is the booklet's whole food section (pizza, bakeries…): 'מקומות אוכל'. 'מסעדות' is only the food
+// type 'מסעדה' – the same word as its chip (P1-13, docs/terms.md)
+const KINDS = [['מסעדה','מקומות אוכל'],['אוכל לשבת','אוכל מוכן לשבת'],['קייטרינג','קייטרינג'],['אולם אירועים','אולמות אירועים'],['מלון','בתי מלון'],['בית הארחה','בתי הארחה']];
 PLACES.forEach((p, i) => { p.id = i; });
 
 // ---------- icons ----------
@@ -351,17 +353,30 @@ let INST = null; const STANDALONE = matchMedia('(display-mode: standalone)').mat
 // ---------- geo ----------
 const km = (a, b) => { const dLa = rad(b.lat-a.lat), dLo = rad(b.lng-a.lng); const x = Math.sin(dLa/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLo/2)**2; return 12742*Math.asin(Math.sqrt(x)); };
 const cityLL = c => CITY[c] ? { lat:CITY[c][0], lng:CITY[c][1] } : null;
-const exact = p => !!(p.g && p.g.loc);
-const LLof = p => exact(p) ? p.g.loc : cityLL(p.c);
+const hasLoc = p => !!(p.g && p.g.loc);
+// exact = a point for the place itself. Street-level matches (prec 'street', g.q 'approx-loc') and places with only a
+// town (shown at the town centre) are approximate: their distance is never shown as exact (P1-9, data request P0-3)
+const exact = p => hasLoc(p) && p.g.prec !== 'street' && !(Array.isArray(p.g.q) && p.g.q.includes('approx-loc'));
+const LLof = p => hasLoc(p) ? p.g.loc : cityLL(p.c);
 const NEAR_KM = 12;
 const REF = () => ME || (S.city ? cityLL(S.city) : null);
 const distOf = p => { const ll = LLof(p), r = REF(); return r && ll ? km(r, ll) : null; };
+const kmTxt = d => (d < 10 ? d.toFixed(1) : Math.round(d)) + ' ק״מ';
+// Distance wording (P1-9, DECISIONS 26.11):
+// - from the user's position (GPS): exact places – walking minutes up to 1.5 km, then km; street-level places –
+//   'בערך' + km; town-only places – 'ב<town>' when close, else 'בערך' + whole km (town level).
+// - from a chosen town (no GPS) the reference is the town centre, not the user: no walking time ever; places in the
+//   town show no distance (their section says 'ב<town>'), places around it show whole km from the centre.
 function distTxt(p, d) {
   if (d == null) return '';
-  if (!exact(p)) return d < 4 ? 'ב' + p.c : '~' + (d < 10 ? d.toFixed(1) : Math.round(d)) + ' ק״מ';
+  if (!ME) return p.c === S.city ? '' : Math.max(1, Math.round(d)) + ' ק״מ';
+  if (!hasLoc(p)) return d < 4 ? 'ב' + p.c : 'בערך ' + Math.max(1, Math.round(d)) + ' ק״מ';
+  if (!exact(p)) return 'בערך ' + kmTxt(Math.max(d, 0.1));
   if (d < 1.5) { const m = Math.max(1, Math.round(d * 1.3 / 5 * 60)); return m + ' דק׳ הליכה'; }
-  return (d < 10 ? d.toFixed(1) : Math.round(d)) + ' ק״מ';
+  return kmTxt(d);
 }
+// near-me order: the same bands as the list sections; inside a band places with an exact point come first
+const band = r => r.d == null ? 3 : exact(r.p) && r.d <= 1.5 ? 0 : r.d <= 10 ? 1 : 2;
 function nearestCity(ll) { let b = null, bd = 1e9; for (const c in CITY) { const d = km(ll, cityLL(c)); if (d < bd) { bd = d; b = c; } } return b; }
 
 // ---------- open status ----------
@@ -373,6 +388,7 @@ const fmtDate = s => { const [y, m, d] = String(s).split('-').map(Number); retur
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const STALE_MONTHS = 6;
 function srcLine(g) {
+  if (g && g.src === 'osm') return '<div class="src">המיקום לפי OpenStreetMap. כדאי לוודא לפני שיוצאים.</div>'; // no Google data (data request 25.11)
   const c = g && g.chk; if (!c) return '<div class="src">כדאי לוודא את השעות לפני שיוצאים.</div>';
   const [y, m] = c.split('-').map(Number), n = IL(), age = (n.getFullYear() - y) * 12 + n.getMonth() + 1 - m;
   return `<div class="src">לפי Google Maps, נבדק ב${MONTHS[m - 1]} ${y}. ${age > STALE_MONTHS ? '<span class="stale">ייתכן שהשעות השתנו מאז.</span> ' : ''}כדאי לוודא לפני שיוצאים.</div>`;
@@ -381,7 +397,9 @@ function srcLine(g) {
 const DOUBT = 'נראה שהמידע אינו מדוייק';
 const doubtful = p => !!(p.g && Array.isArray(p.g.q) && (p.g.q.includes('hours-shabbat') || p.g.q.includes('hours-24h')));
 const nPl = n => n === 1 ? 'מקום אחד' : n + ' מקומות';
-const byU = u => PLACES.find(p => p.u === u);
+// aka: ids of places merged into this one (data request P1-2), so old shared links and favourites still open it
+const byU = u => PLACES.find(p => p.u === u) || PLACES.find(p => Array.isArray(p.aka) && p.aka.includes(u));
+function migrateIds() { for (const k of ['kl3_fav', 'kl3_rec']) { const a = LS.get(k, []); const b = [...new Set(a.map(u => { const p = byU(u); return p ? p.u : u; }))]; if (b.join() !== a.join()) LS.set(k, b); } }
 const favs = () => LS.get('kl3_fav', []), isFav = p => favs().includes(p.u);
 function toggleFav(p) { const f = favs(); LS.set('kl3_fav', f.includes(p.u) ? f.filter(x => x !== p.u) : [p.u, ...f].slice(0, 50)); }
 function addRecent(p) { const r = LS.get('kl3_rec', []).filter(x => x !== p.u); LS.set('kl3_rec', [p.u, ...r].slice(0, 8)); }
@@ -397,7 +415,17 @@ function personalHTML(now) {
 // install: suggest from the second day of use; never again once declined
 const visits = (() => { const v = LS.get('kl3_v', { n: 0, d: '' }), d = new Date().toDateString(); if (v.d !== d) { v.n++; v.d = d; LS.set('kl3_v', v); } return v.n; })();
 const showInstallCard = () => !STANDALONE && visits >= 2 && !LS.get('kl3_instx', 0) && (INST || IOS);
-async function doInstall() { if (INST) { INST.prompt(); try { await INST.userChoice; } catch {} INST = null; render(); } else toast('בספארי: כפתור השיתוף ואז "הוספה למסך הבית"'); }
+// one install path for the card and the list button; on iPhone a short illustrated guide that stays until closed (P2-4)
+async function doInstall() { if (INST) { INST.prompt(); try { await INST.userChoice; } catch {} INST = null; render(); } else iosGuide(); }
+function iosGuide() {
+  const i = d => `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;margin-inline-end:8px">${d}</svg>`;
+  openDlg(`<h3>הוספה למסך הבית</h3>
+    <div class="fg"><h4>1. בספארי, לוחצים על כפתור השיתוף</h4><div>${i('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>')}בתחתית המסך (או למעלה באייפד)</div></div>
+    <div class="fg"><h4>2. בוחרים "הוספה למסך הבית"</h4><div>${i('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>')}אם לא רואים, גוללים למטה ברשימה</div></div>
+    <div class="fg"><h4>3. לוחצים "הוספה"</h4><div>האפליקציה תופיע במסך הבית ותיפתח מהר, גם כשהקליטה חלשה.</div></div>
+    <div class="dbar"><button class="btn pri" id="iosOk">הבנתי</button></div>`);
+  $('dlg').onclick = e => { if (e.target.id === 'iosOk') closeDlg(); };
+}
 async function sharePlace(p, gmu) {
   const url = location.origin + '/?p=' + encodeURIComponent(p.u);
   const text = [p.n, [p.s, p.c].filter(Boolean).join(', '), 'כשרות: ' + (p.h || HC[p.hc]), 'ניווט בגוגל מפות: ' + gmu].join('\n');
@@ -410,33 +438,70 @@ const norm = normText; // src/logic.js
 // shown exactly as in the source list, including qualifiers in parentheses such as 'only the parve'
 const shortH = p => p.h || HC[p.hc];
 PLACES.forEach(p => p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')));
-function results() {
-  const terms = norm(S.q).split(' ').filter(Boolean), now = T(), out = [];
+// Typos: a search word that matches nowhere exactly gets a light fuzzy match. Letters that sound alike are folded
+// (ק=כ, ח=כ, ט=ת, ס=ש, ע=א); then, for words of 4+ letters, one edit is allowed (a letter added, missing or changed,
+// or two neighbours swapped) against a whole word or its beginning, also without a one-letter prefix (ו/ה/ב/ל/מ/ש/כ).
+// A word found exactly somewhere never goes fuzzy, so 'פיצה' never brings 'פיתה'. Fuzzy results get a note and are
+// ranked by closeness: same sound > inside a word > one edit of a whole word > one edit of a word's beginning;
+// between equally close words, the more common word in the data first ('פיזה' -> 'פיצה' before 'שפירה').
+const PHON = { 'ק':'כ', 'ח':'כ', 'ט':'ת', 'ס':'ש', 'ע':'א' };
+const phon = w => w.replace(/[קחטסע]/g, c => PHON[c]);
+function ed1(a, b) { // optimal string alignment distance <= 1
+  if (a === b) return true;
+  const la = a.length, lb = b.length; if (Math.abs(la - lb) > 1) return false;
+  let i = 0; while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2));
+  return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
+}
+let DF = null, DF_REV = -1; // in how many places each search word appears
+const df = () => { if (DF && DF_REV === DATA_REV && DF.n === PLACES.length) return DF; DF = new Map(); DF.n = PLACES.length; DF_REV = DATA_REV;
+  for (const p of PLACES) for (const w of new Set(p.words || (p.words = p.hay.split(' ')))) DF.set(w, (DF.get(w) || 0) + 1); DF.max = Math.max(1, ...DF.values()); return DF; };
+function fuzzyWord(t) {
+  const pt = phon(t), memo = new Map(), F = df();
+  const one = pw => pw === pt ? 0 : pw.includes(pt) ? 1 : pt.length < 4 ? 9 : ed1(pt, pw) ? 2
+    : [pt.length - 1, pt.length, pt.length + 1].some(n => n < pw.length && ed1(pt, pw.slice(0, n))) ? 3 : 9;
+  const sc = w => { if (memo.has(w)) return memo.get(w); const pw = phon(w); let s = one(pw);
+    if (s > 0 && pw.length > 4 && 'והבלמשכ'.includes(pw[0])) s = Math.min(s, one(pw.slice(1)));
+    if (s < 9) s += 0.5 * (1 - (F.get(w) || 1) / F.max); // tie-break inside a closeness level, never across levels
+    memo.set(w, s); return s; };
+  return p => Math.min(...(p.words || (p.words = p.hay.split(' '))).map(sc));
+}
+// per search word: score 0 = exact; fuzzy words score 0–3; 9 = no match
+const termMatchers = terms => terms.map(t => PLACES.some(p => p.hay.includes(t)) || t.length < 3 || !/[א-ת]/.test(t) ? { fz: false, sc: p => p.hay.includes(t) ? 0 : 9 } : { fz: true, sc: fuzzyWord(t) });
+let FUZZY = false;
+// o.all: the current view without 'open now' / 'open on Friday' (for the open-now count on the chip, P1-10)
+function results(o = {}) {
+  const open = o.all ? false : S.open, fri = o.all ? false : S.fri;
+  const terms = norm(S.q).split(' ').filter(Boolean), now = T(), out = [], tm = termMatchers(terms);
+  if (!o.all && !o.probe) FUZZY = tm.some(m => m.fz);
   for (const p of PLACES) {
     if (S.kind && !p.k.startsWith(S.kind)) continue;
     if (S.city && p.c !== S.city) { const c = cityLL(S.city), ll = LLof(p); if (!c || !ll || km(c, ll) > NEAR_KM) continue; }
-    if (S.fri && !friRanges(p).length && p.f !== 'אוכל לשבת' && p.k !== 'אוכל לשבת') continue;
+    if (fri && !friRanges(p).length && p.f !== 'אוכל לשבת' && p.k !== 'אוכל לשבת') continue;
     if (S.hc.length && !S.hc.includes(p.hc)) continue;
     if (S.t.length && !S.t.some(t => p.t.includes(t))) continue;
     if (S.food && p.f !== S.food) continue;
-    if (terms.length && !terms.every(t => p.hay.includes(t))) continue;
+    let fz = 0; for (const m of tm) { fz = Math.max(fz, m.sc(p)); if (fz >= 9) break; } if (fz >= 9) continue;
     let st = status(p, now);
-    if (S.fri) { if (st.s === 'x') continue; const fr = friRanges(p); st = fr.length ? { s:'y', t:'בשישי ' + fr.map(([o, c]) => c - o >= 1440 ? 'פתוח 24 שעות' : hhmm(o) + '–' + hhmm(c % 1440)).join(', '), r:0, close: Math.max(...fr.map(x => x[1])) } : { s:'u', t:'אוכל לשבת · ' + NOINFO, r:2, close:-1 }; }
-    if (S.open && (st.s === 'n' || st.s === 'x')) continue;
-    out.push({ p, st, d: distOf(p) });
+    if (fri) { if (st.s === 'x') continue; const fr = friRanges(p); st = fr.length ? { s:'y', t:'בשישי ' + fr.map(([o, c]) => c - o >= 1440 ? 'פתוח 24 שעות' : hhmm(o) + '–' + hhmm(c % 1440)).join(', '), r:0, close: Math.max(...fr.map(x => x[1])) } : { s:'u', t:'אוכל לשבת · ' + NOINFO, r:2, close:-1 }; }
+    if (open && (st.s === 'n' || st.s === 'x')) continue;
+    out.push({ p, st, d: distOf(p), fz });
   }
-  const byD = (a,b) => (a.d ?? 1e9) - (b.d ?? 1e9) || a.p.n.localeCompare(b.p.n,'he');
+  const byD = ME ? (a,b) => band(a) - band(b) || exact(b.p) - exact(a.p) || (a.d ?? 1e9) - (b.d ?? 1e9) || a.p.n.localeCompare(b.p.n,'he')
+                 : (a,b) => (a.d ?? 1e9) - (b.d ?? 1e9) || a.p.n.localeCompare(b.p.n,'he');
   if (S.sort === 'name') out.sort((a,b) => a.p.n.localeCompare(b.p.n,'he'));
-  else if (S.fri) out.sort((a,b) => b.st.close - a.st.close || byD(a,b));
-  else if (S.open) out.sort((a,b) => a.st.r - b.st.r || byD(a,b));
+  else if (fri) out.sort((a,b) => b.st.close - a.st.close || byD(a,b));
+  else if (open) out.sort((a,b) => a.st.r - b.st.r || byD(a,b));
   else out.sort(byD);
+  // stable: closest spelling first, the usual order inside; far weaker matches are dropped when closer ones exist
+  if (tm.some(m => m.fz)) { out.sort((a, b) => a.fz - b.fz); const best = out.length ? Math.floor(out[0].fz) : 0; for (let i = out.length - 1; i >= 0 && Math.floor(out[i].fz) > best + 1; i--) out.pop(); }
   // places Google marks as closed stay in the list, at the end
   return out.filter(r => r.st.s !== 'x').concat(out.filter(r => r.st.s === 'x'));
 }
 
 // ---------- list render ----------
 function itemHTML({p, st, d}) {
-  return `<button class="item" data-id="${p.id}">
+  return `<button class="item" data-id="${p.id}" data-u="${esc(p.u)}">
     <span class="pinx b-${p.hc}">${ico(p)}<i aria-hidden="true">${HL[p.hc]}</i></span>
     <span class="bd">
       <div class="nm">${esc(p.n)}</div>
@@ -448,7 +513,7 @@ function itemHTML({p, st, d}) {
   </button>`;
 }
 function listHTML(slice) {
-  if (S.city && !ME && S.sort !== 'name' && !S.fri) { const a = slice.filter(r => r.p.c === S.city), b = slice.filter(r => r.p.c !== S.city); return (a.length ? `<div class="sec-h">ב${esc(S.city)}</div>` + a.map(itemHTML).join('') : '') + (b.length ? '<div class="sec-h">בסביבה</div>' + b.map(itemHTML).join('') : ''); }
+  if (S.city && !ME && S.sort !== 'name' && !S.fri) { const a = slice.filter(r => r.p.c === S.city), b = slice.filter(r => r.p.c !== S.city); return (a.length ? `<div class="sec-h">ב${esc(S.city)}</div>` + a.map(itemHTML).join('') : '') + (b.length ? `<div class="sec-h">בסביבה · המרחק ממרכז ${esc(S.city)}</div>` + b.map(itemHTML).join('') : ''); }
   if (!ME || S.sort === 'name' || S.fri) return slice.map(itemHTML).join('');
   const bands = [['במרחק הליכה', r => exact(r.p) && r.d <= 1.5], ['עד 10 ק״מ', r => r.d != null && r.d <= 10], ['רחוק יותר', () => true]];
   const used = new Set(); let h = '';
@@ -459,8 +524,8 @@ function render() {
   LS.set('kl3_f', { open:S.open, hc:S.hc, t:S.t, food:S.food, kind:S.kind, city:S.city, sort:S.sort });
   rows = results();
   // chips
-  const now = T(); let nOpen = 0;
-  for (const p of PLACES) if (p.k === 'מסעדה' && /[ys]/.test(status(p, now).s)) nOpen++;
+  // open-now count of the view on screen (town / near / search / filters), the same places the list shows with the chip on
+  const now = T(), nOpen = (S.open && !S.fri ? rows : results({ all: true })).filter(r => /[ys]/.test(r.st.s)).length;
   const wl = whenLabel();
   $('cOpen').classList.toggle('on', S.open); $('cOpen').setAttribute('aria-pressed', S.open);
   { const dw = IL().getDay(); $('cFri').hidden = !(S.fri || dw === 4 || dw === 5); $('cFri').classList.toggle('on', !!S.fri); $('cFri').setAttribute('aria-pressed', !!S.fri); }
@@ -472,29 +537,52 @@ function render() {
   if (sel != null) { detail(PLACES[sel], true); paint(); return; }
   // header
   $('sTitle').textContent = S.fri ? 'פתוח בשישי' : ME ? (ME.src === 'gps' ? 'קרוב אליך' : 'ליד ' + ME.label) : (S.city ? S.city + ' והסביבה' : 'מקומות כשרים');
-  $('sSub').textContent = rows.length ? nPl(rows.length) : '';
+  { const nU = S.open && !S.fri ? rows.filter(r => r.st.s === 'u').length : 0, nO = rows.length - nU;
+    $('sSub').textContent = !rows.length ? '' : !(S.open && !S.fri) ? nPl(rows.length)
+      : (nO === 1 ? 'מקום אחד פתוח' : nO + ' פתוחים') + (nU ? ` · ${nU} בלי מידע על שעות` : ''); }
   let top = '';
   if (!ME && !S.city) top = `<div class="cta"><p><b>מה קרוב אליך?</b>נציג קודם את המקומות הכי קרובים.</p><div style="display:flex;flex-direction:column;gap:6px"><button class="btn pri" id="ctaGps">איתור מיקום</button><button class="btn ghost" id="ctaCity">בחירת ישוב</button></div></div>`;
   const fb = fridayBanner(now); if (fb) top += fb;
   if (S.fri) top += `<div class="note">מקומות שפתוחים ביום שישי לפי השעות שפורסמו, מהנסגר הכי מאוחר. בסוף: מקומות לאוכל לשבת שאין עליהם מידע על שעות.</div>`;
   if (showInstallCard()) top += `<div class="instc"><p><b>להוסיף למסך הבית?</b><br>נפתח מהר, גם כשהקליטה חלשה.</p><button class="btn pri" id="instY">הוספה</button><button class="btn ghost" id="instN" aria-label="לא עכשיו">לא</button></div>`;
   if (!S.q && !S.fri) top += personalHTML(now);
+  if (FUZZY && rows.length) top += `<div class="note">לא נמצאה התאמה מדויקת ל״${esc(S.q.trim())}״. מוצגים מקומות עם שם דומה.</div>`;
   if (S.open) top += `<div class="note">מוצגים מקומות ש${S.when ? 'פתוחים בזמן שבחרתם (' + wl + ')' : 'פתוחים עכשיו'} לפי שעות הפעילות ברשת. בסוף הרשימה גם מקומות שאין עליהם מידע על שעות הפעילות.</div>`;
   const slice = rows.slice(0, shown);
-  $('sbody').innerHTML = top + (slice.length ? listHTML(slice) : `<div class="empty"><b>לא נמצאו מקומות</b>נסו להסיר חלק מהסינונים.<br><br><button class="btn ghost" id="clr">ניקוי סינון</button></div>`)
+  $('sbody').innerHTML = top + (slice.length ? listHTML(slice) : emptyHTML())
     + (rows.length > shown ? `<button class="more" id="more">עוד ${nPl(Math.min(40, rows.length - shown))}</button>` : '')
     + ((INST || (IOS && !STANDALONE)) ? '<button class="more" id="inst">הוספה למסך הבית</button>' : '')
-    + `<div class="foot">המאגר עודכן לאחרונה ב־${esc(fmtDate(DATA_UPDATED))}. המקומות והכשרויות מתוך מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה. יש לבדוק את תעודת הכשרות במקום. שעות, טלפונים ומיקומים: Google Maps ו-OpenStreetMap. כדאי לוודא שעות לפני שיוצאים. עדכונים: <a href="mailto:chabadfood770@gmail.com">chabadfood770@gmail.com</a></div>`;
+    + `<div class="foot">המאגר עודכן לאחרונה ב־${esc(fmtDate(DATA_UPDATED))}. המקומות והכשרויות מתוך מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה. יש לבדוק את תעודת הכשרות במקום. שעות, טלפונים ומיקומים: Google Maps ו-OpenStreetMap. כדאי לוודא שעות לפני שיוצאים. עדכונים: <a href="mailto:chabadfood770@gmail.com">chabadfood770@gmail.com</a><br>פרטיות: המיקום שלך נשאר במכשיר ולא נשמר. אין מעקב ואין פרסומות. המפה נטענת מ-OpenFreeMap והנתונים מ-GitHub.</div>`;
   if ($('ctaGps')) $('ctaGps').onclick = gps;
   if ($('instY')) $('instY').onclick = doInstall;
   if ($('instN')) $('instN').onclick = () => { LS.set('kl3_instx', 1); render(); };
   if ($('ctaCity')) $('ctaCity').onclick = cityDlg;
   if ($('clr')) $('clr').onclick = clearAll;
+  document.querySelectorAll('#sbody [data-widen]').forEach(b => b.onclick = () => { Object.assign(S, WIDEN[+b.dataset.widen].patch); sel = null; shown = 40; render(); $('sTitle').focus({ preventScroll: true }); });
   if ($('more')) $('more').onclick = () => { shown += 40; render(); };
-  paint();
+  paint(); syncHist();
+}
+
+// Empty list: offer the ways out that really give results, each with its count (Wolt-style); never a dead button
+let WIDEN = [];
+function emptyHTML() {
+  const probe = patch => { const keep = Object.assign({}, S); Object.assign(S, patch); const n = results({ probe: true }).length; Object.assign(S, keep); return n; };
+  const opts = [
+    S.city && !ME && [{ city: '' }, 'חיפוש בכל הארץ'],
+    S.open && [{ open: false }, S.when ? 'גם מקומות שסגורים בזמן הזה' : 'גם מקומות שסגורים עכשיו'],
+    S.fri && [{ fri: false }, 'כל המקומות, לא רק בשישי'],
+    S.food && [{ food: '' }, 'כל סוגי האוכל'],
+    S.t.length && [{ t: [] }, 'בשרי, חלבי ופרווה'],
+    S.hc.length && [{ hc: [] }, 'כל הכשרויות'],
+    S.kind && [{ kind: '', food: '' }, 'כל סוגי המקומות (גם קייטרינג, אולמות ומלונות)'],
+  ].filter(Boolean).map(([patch, label]) => ({ patch, label, n: probe(patch) })).filter(x => x.n > 0).slice(0, 3);
+  WIDEN = opts;
+  const what = S.q.trim() ? `לא נמצאו מקומות ל״${esc(S.q.trim())}״` : 'לא נמצאו מקומות';
+  return `<div class="empty"><b>${what}</b>${opts.length ? 'אפשר להרחיב:' + opts.map((x, i) => `<button class="btn ghost" data-widen="${i}">${esc(x.label)} · ${x.n}</button>`).join('') : 'נסו מילה אחרת או פחות סינונים.'}<button class="btn ghost" id="clr">ניקוי סינון</button></div>`;
 }
 
 // ---------- detail ----------
+const fmtHrs = v => /^0?0:00\s*[–-]\s*24:00$/.test(v.trim()) ? 'פתוח 24 שעות' : v.replace(/(^|[^\d])(\d):(\d\d)/g, (_, a, h, m) => a + '0' + h + ':' + m);
 function detail(p, keepScroll) {
   sel = p.id;
   addRecent(p);
@@ -502,17 +590,20 @@ function detail(p, keepScroll) {
   const phone = g.phone || p.p;
   const ll = LLof(p);
   const q = encodeURIComponent([p.n, p.s, p.c].filter(Boolean).join(' '));
-  const waze = exact(p) ? `https://waze.com/ul?ll=${ll.lat},${ll.lng}&navigate=yes` : `https://waze.com/ul?q=${q}&navigate=yes`;
+  const waze = hasLoc(p) ? `https://waze.com/ul?ll=${ll.lat},${ll.lng}&navigate=yes` : `https://waze.com/ul?q=${q}&navigate=yes`;
   const gmu = `https://www.google.com/maps/search/?api=1&query=${q}`;
   const today = now.getDay();
-  const hrs = g.week && g.week.length === 7 ? DAYS.map((n, i) => { const v = (g.week[(i + 6) % 7] || '').replace(/^[^:]+:\s*/, ''); const cls = i===today ? 't' : ''; return `<span class="${cls}">${n}</span><span class="${cls}">${/\d/.test(v) ? v.split(/,\s*/).map(x => `<bdi>${esc(x)}</bdi>`).join(', ') : esc(v)}</span>`; }).join('') : '';
+  // one hour format in the table: 07:00 (not 7:00), a whole day '0:00–24:00' = 'פתוח 24 שעות' (P2-3)
+  const dayHrs = i => fmtHrs((g.week[(i + 6) % 7] || '').replace(/^[^:]+:\s*/, ''));
+  const hrs = g.week && g.week.length === 7 ? DAYS.map((n, i) => { const v = dayHrs(i); const cls = i===today ? 't' : ''; return `<span class="${cls}">${n}</span><span class="${cls}">${/\d/.test(v) ? v.split(/,\s*/).map(x => `<bdi>${esc(x)}</bdi>`).join(', ') : esc(v)}</span>`; }).join('') : '';
   const fri = now.getDay() === 5 || now.getDay() === 4 ? (() => { const ll2 = LLof(p); if (!ll2) return ''; const f = new Date(now); f.setDate(f.getDate() + (5 - f.getDay())); return `<div class="src">הדלקת נרות ב${esc(p.c)} ביום שישי: ${esc(candles(p.c, ll2, f))}</div>`; })() : '';
   $('sTitle').textContent = ''; $('sSub').textContent = '';
   $('sbody').innerHTML = `<div class="det">
     <button class="back" id="back">${IC.back}חזרה לרשימה</button>
     <div class="hd"><h3>${esc(p.n)}</h3><button class="fav" id="fav" aria-pressed="${isFav(p)}" aria-label="שמירה ברשימה שלי">${starSVG(isFav(p))}</button></div>
-    <div class="addr">${esc([p.s, p.c].filter(Boolean).join(', '))}</div>
-    <div class="row">${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}${d != null ? `<span>${esc(distTxt(p, d))}</span>` : ''}<span style="color:var(--sub)">${esc(p.f + (p.t.length ? ', ' + p.t.join('/') : ''))}</span></div>
+    <div class="addr">${p.s ? esc(p.s + ', ' + p.c) : esc(p.c) + ' · אין כתובת במאגר'}</div>
+    ${exact(p) ? '' : `<div class="src">${hasLoc(p) ? 'המיקום במפה משוער, ברמת הרחוב.' : 'המיקום במפה משוער, לפי מרכז הישוב.'}</div>`}
+    <div class="row">${st.t ? `<span class="st-${st.s}">${esc(st.t)}</span>` : ''}${distTxt(p, d) ? `<span>${esc(distTxt(p, d))}</span>` : ''}<span style="color:var(--sub)">${esc(p.f + (p.t.length ? ', ' + p.t.join('/') : ''))}</span></div>
     <div class="acts">
       <a class="pri" href="${waze}" target="_blank" rel="noopener">${IC.nav}ניווט</a>
       <a href="${gmu}" target="_blank" rel="noopener">${IC.gm}גוגל מפות</a>
@@ -520,15 +611,15 @@ function detail(p, keepScroll) {
       ${phone ? `<a href="tel:${esc(phone.replace(/[^\d+]/g,''))}" aria-label="חיוג ${esc(phone)}">${IC.tel}<span>חיוג <small>${esc(phone)}</small></span></a>` : `<a class="off">${IC.tel}אין טלפון</a>`}
     </div>
     <div class="kbox"><span class="ks b-${p.hc}">${HL[p.hc]}</span><div><div class="kt">כשרות</div><div class="kn">${esc(p.h || HC[p.hc])}</div><div class="ksrc">לפי מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה</div></div></div>
-    <div class="dl"><h4>שעות פתיחה</h4>${hrs ? `<div class="hrs">${hrs}</div>` : p.fri ? `<div>פתוח בליל שישי (לפי המאגר), השעות לא ידועות</div>` : `<div style="color:var(--sub);font-weight:600">${NOINFO}</div>`}${doubtful(p) ? `<div class="src"><span class="stale">${DOUBT}</span></div>` : ''}${hrs ? srcLine(g) : ''}${fri}</div>
+    <div class="dl"><h4>שעות פתיחה${hrs && dayHrs(today) ? ' · היום: <bdi>' + esc(dayHrs(today)) + '</bdi>' : ''}</h4>${hrs ? `<div class="hrs">${hrs}</div>` : p.fri ? `<div>פתוח בליל שישי (לפי המאגר), השעות לא ידועות</div>` : `<div style="color:var(--sub);font-weight:600">${NOINFO}</div>`}${doubtful(p) ? `<div class="src"><span class="stale">${DOUBT}</span></div>` : ''}${hrs || g.src === 'osm' ? srcLine(g) : ''}${fri}</div>
     <div class="report-slot" aria-hidden="true"></div>
-    <p class="warn">יש לבדוק את תעודת הכשרות במקום העסק.${exact(p) ? '' : ' המיקום במפה משוער, לפי מרכז הישוב.'}</p>
+    <p class="warn">יש לבדוק את תעודת הכשרות במקום העסק.</p>
   </div>`;
-  $('back').onclick = () => { sel = null; render(); };
+  $('back').onclick = closeCard;
   $('share').onclick = () => sharePlace(p, gmu);
   $('fav').onclick = () => { toggleFav(p); const on = isFav(p); $('fav').setAttribute('aria-pressed', on); $('fav').innerHTML = starSVG(on); toast(on ? 'נשמר ברשימה שלי' : 'הוסר מהרשימה שלי'); };
   if (!keepScroll) { $('sbody').scrollTop = 0; snap('half'); if (ll) panTo(ll); }
-  paint();
+  paint(); syncHist();
 }
 
 // ---------- bottom sheet (mobile) ----------
@@ -547,7 +638,7 @@ const SNAP = { peek: () => innerHeight - 168, half: () => Math.max(innerHeight *
 let snapName = 'peek';
 const wide = () => matchMedia('(min-width:900px)').matches;
 function sheetY(name) { const h = $('sheet').offsetHeight; return Math.max(0, h - (innerHeight - SNAP[name]())); }
-function snap(name) { snapName = name; if (wide()) return; $('sheet').style.transform = `translateY(${name === 'full' ? 0 : sheetY(name)}px)`; $('meBtn').style.bottom = (name === 'peek' ? 180 : innerHeight - SNAP[name]() + 12) + 'px'; }
+function snap(name) { snapName = name; if (wide()) return; $('sheet').style.transform = `translateY(${name === 'full' ? 0 : sheetY(name)}px)`; $('meBtn').style.bottom = (name === 'peek' ? 180 : innerHeight - SNAP[name]() + 12) + 'px'; syncHist(); }
 (() => {
   const sh = $('sheet'); let y0 = null, t0 = 0, base = 0;
   const cur = () => { const m = /translateY\((-?[\d.]+)px\)/.exec(sh.style.transform); return m ? +m[1] : 0; };
@@ -564,7 +655,9 @@ function snap(name) { snapName = name; if (wide()) return; $('sheet').style.tran
 })();
 
 // ---------- map (MapLibre GL + OpenFreeMap vector tiles: free, no key) ----------
-let map = null, mapMode = null, markers = [], meMk = null;
+let map = null, mapMode = null, meMk = null;
+// markers are kept by key and rebuilt only when their look changes, not on every map move (P1-12)
+const MK = new Map(); let mkUsed = new Set();
 function loadML() {
   if (window.maplibregl) return Promise.resolve(true);
   const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/vendor/maplibre-gl.css'; document.head.appendChild(l);
@@ -603,10 +696,21 @@ function hebLabels() {
 // light/dark follows the system while the app is open; a full style load, then the same label rules again
 DARK.addEventListener('change', () => { if (!map || mapMode !== 'gl') return; map.once('style.load', hebLabels); map.setStyle(styleUrl(), { diff: false }); });
 const mkEl = (html, cls) => { const d = document.createElement('div'); d.className = 'mkw ' + (cls || ''); d.innerHTML = html; return d; };
+function putMk(key, html, cls, ll, onclick, pid) {
+  const sig = html + '|' + cls + '|' + ll[0].toFixed(6) + ',' + ll[1].toFixed(6) + '|' + DATA_REV;
+  mkUsed.add(key);
+  const o = MK.get(key); if (o && o.sig === sig) return;
+  if (o) o.m.remove();
+  const el = mkEl(html, cls); el.onclick = ev => { ev.stopPropagation(); onclick(); };
+  MK.set(key, { m: new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map), sig, el, pid });
+}
+// desktop: pointing at a list row lifts its marker on the map
+const hoverMk = (pid, on) => { for (const o of MK.values()) if (o.pid === pid) { o.el.classList.toggle('hov', on); o.el.classList.toggle('top', on || o.el.querySelector('.mk.sel') != null); const mk = o.el.querySelector('.mk'); if (mk) mk.style.scale = on ? '1.3' : ''; } };
 function paint() {
   if (mapMode === 'svg') return drawSvg();
   if (!map || mapMode !== 'gl') return;
-  markers.forEach(m => m.remove()); markers = [];
+  mkUsed = new Set();
+  const sweep = () => { for (const [k, o] of MK) if (!mkUsed.has(k)) { o.m.remove(); MK.delete(k); } };
   if (meMk) { meMk.remove(); meMk = null; }
   if (ME) meMk = new maplibregl.Marker({ element: mkEl('<div class="me"></div>') }).setLngLat([ME.lng, ME.lat]).addTo(map);
   const z = map.getZoom(), b = map.getBounds();
@@ -622,26 +726,37 @@ function paint() {
       if (g) { g.n += cnt[c]; g.towns.push(c); } else groups.push({ ll, pt, n: cnt[c], towns: [c] });
     });
     for (const g of groups) {
-      const el = mkEl(`<div class="cl" title="${esc(g.towns.join(', '))}">${g.n}</div>`);
-      el.onclick = ev => { ev.stopPropagation();
+      putMk('cl:' + g.towns.join('|'), `<div class="cl" title="${esc(g.towns.join(', '))}">${g.n}</div>`, '', [g.ll.lng, g.ll.lat], () => {
         if (g.towns.length === 1) return ease({ center:[g.ll.lng, g.ll.lat], zoom:14.5 });
         const lls = g.towns.map(cityLL), lo = lls.map(x => x.lng), la = lls.map(x => x.lat);
-        map.fitBounds([[Math.min(...lo), Math.min(...la)], [Math.max(...lo), Math.max(...la)]], Object.assign({ padding: 80, maxZoom: 14.5 }, RM ? { duration: 0 } : {})); };
-      markers.push(new maplibregl.Marker({ element: el }).setLngLat([g.ll.lng, g.ll.lat]).addTo(map)); }
-    return;
+        map.fitBounds([[Math.min(...lo), Math.min(...la)], [Math.max(...lo), Math.max(...la)]], Object.assign({ padding: 80, maxZoom: 14.5 }, RM ? { duration: 0 } : {})); });
+    }
+    return sweep();
+  }
+  const inView = ll => !(ll.lng < b.getWest() - .01 || ll.lng > b.getEast() + .01 || ll.lat < b.getSouth() - .01 || ll.lat > b.getNorth() + .01);
+  // places with only a town are not spread in a spiral around the town centre (that looks like real spots):
+  // two or more in a town = one dashed badge 'N ב<town>'; a tap shows that town's list (P1-12)
+  const townOnly = {};
+  for (const r of list) if (!hasLoc(r.p) && r.p.id !== sel) (townOnly[r.p.c] = townOnly[r.p.c] || []).push(r);
+  for (const c in townOnly) { const n = townOnly[c].length, ll = cityLL(c); if (n < 2 || !ll || !inView(ll)) continue;
+    putMk('ap:' + c, `<div class="mk ap" style="color:var(--brand)" title="${n} מקומות בלי מיקום מדויק ב${esc(c)}">${n}</div><span class="mkl">${esc(nPl(n) + ' ב' + c)}</span>`, '', [ll.lng, ll.lat], () => {
+      if (!ME && S.city !== c) { S.city = c; sel = null; shown = 40; render(); } // near-me stays near-me
+      snap('half'); toast('המקומות בלי מיקום מדויק מופיעים ברשימה של ' + c);
+    });
   }
   const seen = {};
   for (const { p, st } of list) {
+    if (!hasLoc(p) && p.id !== sel && townOnly[p.c].length > 1) continue;
     const ll = LLof(p); if (!ll) continue;
-    if (ll.lng < b.getWest() - .01 || ll.lng > b.getEast() + .01 || ll.lat < b.getSouth() - .01 || ll.lat > b.getNorth() + .01) continue;
+    if (!inView(ll)) continue;
     const k = ll.lat.toFixed(4) + ',' + ll.lng.toFixed(4), n = seen[k] = (seen[k] || 0) + 1;
     const ang = n * 2.4, r = n > 1 ? 0.00009 * Math.sqrt(n) : 0;
     const isSel = p.id === sel, big = isSel || z >= 16;
     const op = /[ys]/.test(st.s);
-    const el = mkEl(`<div class="mk ${isSel ? 'sel' : ''} ${op ? 'op' : ''} ${exact(p) ? '' : 'ap'}" style="${exact(p) ? 'background:' + HCOL[p.hc] : 'color:' + HCOL[p.hc]}">${HL[p.hc]}</div>${big ? `<span class="mkl">${esc(p.n)}</span>` : ''}`, isSel ? 'top' : '');
-    el.onclick = ev => { ev.stopPropagation(); detail(p); };
-    markers.push(new maplibregl.Marker({ element: el }).setLngLat([ll.lng + r * Math.cos(ang), ll.lat + r * Math.sin(ang)]).addTo(map));
+    putMk('p:' + p.u, `<div class="mk ${isSel ? 'sel' : ''} ${op ? 'op' : ''} ${exact(p) ? '' : 'ap'}" style="${exact(p) ? 'background:' + HCOL[p.hc] : 'color:' + HCOL[p.hc]}">${HL[p.hc]}</div>${big ? `<span class="mkl">${esc(p.n)}</span>` : ''}`, isSel ? 'top' : '',
+      [ll.lng + r * Math.cos(ang), ll.lat + r * Math.sin(ang)], () => detail(PLACES[p.id] === p ? p : byU(p.u) || p), p.id);
   }
+  sweep();
 }
 const panTo = ll => { if (map && mapMode === 'gl') ease({ center:[ll.lng, ll.lat], zoom: Math.max(map.getZoom(), 15.5), offset: wide() ? [-200, 0] : [0, -innerHeight * 0.18] }); };
 // fallback when tiles can't load (e.g., inside a sandboxed preview)
@@ -675,6 +790,7 @@ function openDlg(html) {
   d.innerHTML = html; d.inert = false; d.classList.add('on'); $('scrim').classList.add('on');
   const h = d.querySelector('h3'); if (h) { h.id = 'dlgT'; h.setAttribute('tabindex', '-1'); } // the dialog's own name (aria-labelledby, QA1-4)
   const f = (key && d.querySelector(key)) || h; if (f) f.focus({ preventScroll:true });
+  syncHist();
 }
 function closeDlg() {
   if (!dlgOpen()) return;
@@ -683,10 +799,39 @@ function closeDlg() {
   if (back && back.isConnected && back.focus) back.focus({ preventScroll:true });
   // the opener can disappear in the render that follows (e.g. the town button in the list card): fall back to the list heading
   setTimeout(() => { const a = document.activeElement; if ((!a || a === document.body) && !dlgOpen()) $('sTitle').focus({ preventScroll:true }); }, 0);
+  syncHist();
 }
+function closeCard() { if (sel == null) return; sel = null; render(); }
+
+// ---------- history: every open layer is one history entry, so the phone's Back closes it instead of leaving (P1-8) ----------
+// Layers: (1) a place card, or the phone sheet pulled up to full height; (2) a dialog on top. history.state.kd = depth.
+// A layer closed by the app itself (button, Esc, a filter change) steps back too, so entries never pile up.
+let hSkip = 0, hPop = false, hLater = false;
+const hDepth = () => (history.state && history.state.kd) | 0;
+const hWant = () => ((sel != null || (snapName === 'full' && !wide())) ? 1 : 0) + (dlgOpen() ? 1 : 0);
+function syncHist() {
+  if (hPop) return;
+  if (hSkip) { hLater = true; return; } // our own step back has not landed yet
+  const want = hWant(), now = hDepth(), u = sel != null && PLACES[sel] ? PLACES[sel].u : null;
+  if (want > now) { for (let i = now + 1; i <= want; i++) history.pushState({ kd: i, u }, ''); }
+  else if (want < now) { if (dlgOpen()) return; hSkip++; history.go(want - now); } // the card under an open dialog closed: wait for the dialog
+  else if (now && history.state.u !== u) history.replaceState({ kd: now, u }, ''); // another card in the same layer: no new entry
+}
+addEventListener('popstate', () => {
+  if (hSkip) { hSkip--; if (!hSkip && hLater) { hLater = false; syncHist(); } return; }
+  const now = hDepth(); hPop = true;
+  try {
+    for (let i = 0; i < 4 && hWant() > now; i++) {
+      if (dlgOpen()) closeDlg(); else if (sel != null) { sel = null; render(); } else if (snapName === 'full') snap('half'); else break;
+    }
+    // Forward to a card entry: open that card again
+    if (hWant() < now && !dlgOpen() && sel == null && history.state && history.state.u) { const p = byU(history.state.u); if (p) detail(p); }
+  } finally { hPop = false; }
+  syncHist();
+});
 $('scrim').onclick = closeDlg;
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if (dlgOpen()) { closeDlg(); return; } if (sel != null) { sel = null; render(); } return; }
+  if (e.key === 'Escape') { if (dlgOpen()) { closeDlg(); return; } closeCard(); return; }
   if (e.key !== 'Tab' || !dlgOpen()) return;
   const fs = [...$('dlg').querySelectorAll('button, select, input, a[href], [tabindex]:not([tabindex="-1"])')].filter(x => !x.disabled && x.offsetParent !== null);
   if (!fs.length) return;
@@ -695,6 +840,8 @@ document.addEventListener('keydown', e => {
   else if (e.shiftKey && (a === first || !fs.includes(a))) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
 });
+// one name per food type everywhere: the dialog uses the chip's label where there is a chip (P1-13)
+const FOODL = Object.fromEntries([...document.querySelectorAll('.chip[data-f]')].map(b => [b.dataset.f, b.textContent.trim()]));
 function filters() {
   const foods = [...new Set(PLACES.filter(p => p.k === 'מסעדה').map(p => p.f))].sort((a,b)=>a.localeCompare(b,'he'));
   const cities = Object.keys(CITY).filter(c => PLACES.some(p => p.c === c)).sort((a,b)=>a.localeCompare(b,'he'));
@@ -702,7 +849,7 @@ function filters() {
   openDlg(`<h3>סינון</h3>
     <div class="fg"><h4>כשרות</h4><div class="opts">${Object.entries(HC).map(([k,v]) => o(S.hc.includes(k), `data-hc="${k}"`, `<span class="d" style="background:${HCOL[k]}"></span>${v}`)).join('')}</div></div>
     <div class="fg"><h4>מה מחפשים</h4><div class="opts">${KINDS.map(([k,v]) => o(S.kind===k, `data-kind="${k}"`, v)).join('')}</div></div>
-    ${S.kind === 'מסעדה' ? `<div class="fg"><h4>סוג אוכל</h4><div class="opts">${o(!S.food,'data-food=""','הכל')}${foods.map(f => o(S.food===f, `data-food="${esc(f)}"`, esc(f))).join('')}</div></div>` : ''}
+    ${S.kind === 'מסעדה' ? `<div class="fg"><h4>סוג אוכל</h4><div class="opts">${o(!S.food,'data-food=""','הכל')}${foods.map(f => o(S.food===f, `data-food="${esc(f)}"`, esc(FOODL[f] || f))).join('')}</div></div>` : ''}
     <div class="fg"><h4>ישוב</h4><select class="sel" id="fCity"><option value="">כל הארץ</option>${cities.map(c => `<option${S.city===c?' selected':''}>${esc(c)}</option>`).join('')}</select></div>
     <div class="fg"><h4>מיון</h4><div class="opts">${o(S.sort==='dist','data-sort="dist"','לפי מרחק')}${o(S.sort==='name','data-sort="name"','לפי שם')}</div></div>
     <div class="dbar"><button class="btn ghost" id="fClr">ניקוי</button><button class="btn pri" id="fOk">הצגת ${rows.length} מקומות</button></div>`);
@@ -732,8 +879,13 @@ function whenDlg() {
   const times = []; for (let m = 6*60; m <= 23*60 + 30; m += 30) times.push(m);
   const bm = base.getHours()*60 + (base.getMinutes() < 30 ? 0 : 30);
   const o = (on, attr, label) => `<button class="opt${on?' on':''}" ${attr}>${label}</button>`;
+  // quick picks only in the coming days and never in the past (bug 4.10); no Friday-evening pick (Shabbat)
+  const now = IL(), at = (dw, h) => { const d = dw === 'today' ? IL() : nextDay(dw, h, 0); d.setHours(h, 0, 0, 0); return d; };
+  const pres = [[5, 9, 'בבוקר'], [5, 12, 'בצהריים'], ['today', 19, 'בערב']].map(([dw, h, part]) => ({ d: at(dw, h), part }))
+    .filter(x => x.d > now && x.d - now < 6 * 864e5 && !(x.d.getDay() === 5 && x.d.getHours() >= 14))
+    .map(x => o(false, `data-at="${+x.d}"`, `${dayName(x.d) === 'היום' ? 'היום' : dayName(x.d) === 'מחר' ? 'מחר' : 'שישי'} ${x.part} ${hhmm(x.d.getHours() * 60)}`)).join('');
   openDlg(`<h3 tabindex="-1">מתי רוצים להגיע?</h3>
-    <div class="fg"><h4>מהיר</h4><div class="opts">${o(!S.when,'data-now="1"','עכשיו')}${o(false,'data-pre="5,9,0"','שישי בבוקר 09:00')}${o(false,'data-pre="5,12,0"','שישי בצהריים 12:00')}${o(false,'data-pre="today,19,0"','היום בערב 19:00')}</div></div>
+    <div class="fg"><h4>מהיר</h4><div class="opts">${o(!S.when,'data-now="1"','עכשיו')}${pres}</div></div>
     <div class="fg"><h4>יום</h4><div class="opts">${days.map(d => { const k = new Date(d); k.setHours(0,0,0,0); return o(S.when && +k === +curDay, `data-day="${+k}"`, dayName(d)); }).join('')}</div></div>
     <div class="fg"><h4>שעה</h4><select class="sel" id="wTime">${times.map(m => `<option value="${m}"${m === bm ? ' selected' : ''}>${hhmm(m)}</option>`).join('')}</select></div>
     <div class="dbar"><button class="btn ghost" id="wNow">עכשיו</button><button class="btn pri" id="wOk">הצגה</button></div>`);
@@ -742,7 +894,7 @@ function whenDlg() {
   $('dlg').onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.now || b.id === 'wNow') { S.when = null; closeDlg(); sel = null; shown = 40; render(); return; }
-    if (b.dataset.pre) { const [dw, h, m] = b.dataset.pre.split(','); let d; if (dw === 'today') { d = IL(); d.setHours(+h, +m, 0, 0); } else d = nextDay(+dw, +h, +m); S.when = +d; S.open = true; closeDlg(); sel = null; shown = 40; render(); return; }
+    if (b.dataset.at) { S.when = +b.dataset.at; S.open = true; closeDlg(); sel = null; shown = 40; render(); return; }
     if (b.dataset.day) { day = +b.dataset.day; document.querySelectorAll('#dlg [data-day]').forEach(x => x.classList.toggle('on', x === b)); return; }
     if (b.id === 'wOk') { apply(); S.open = true; closeDlg(); sel = null; shown = 40; render(); }
   };
@@ -781,15 +933,34 @@ document.querySelectorAll('.chip[data-f]').forEach(b => b.onclick = () => { S.fo
 $('fBtn').onclick = filters;
 $('cWhen').onclick = whenDlg;
 $('meBtn').onclick = () => ME && map ? ease({ center:[ME.lng, ME.lat], zoom:15 }) : gps();
+$('sbody').addEventListener('mouseover', e => { const it = e.target.closest('.item'); if (it && wide()) hoverMk(+it.dataset.id, true); });
+$('sbody').addEventListener('mouseout', e => { const it = e.target.closest('.item'); if (it && wide() && !it.contains(e.relatedTarget)) hoverMk(+it.dataset.id, false); });
 $('sbody').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) return detail(PLACES[+it.dataset.id]); const rc = e.target.closest('[data-rec]'); if (rc) { const p = byU(rc.dataset.rec); if (p) detail(p); } });
 addEventListener('resize', () => { measureTop(); snap(snapName); map && map.resize(); });
 measureTop();
 if (window.ResizeObserver) new ResizeObserver(() => { const g = topGap; measureTop(); if (g !== topGap) snap(snapName); }).observe(document.querySelector('.topbar'));
-setInterval(() => document.visibilityState === 'visible' && sel == null && render(), 60000);
+// Statuses refresh every minute and when the app comes back to the screen. The refresh keeps what the user is doing:
+// focus, list or card scroll, the open card, an open dialog and the caret in the search box (P1-11)
+function keepView(fn) {
+  const sb = $('sbody'), a = document.activeElement, top = sb.scrollTop, q = $('q');
+  const FOC = 'a[href],button,select,input,[tabindex]';
+  let key = null, idx = -1;
+  if (a && sb.contains(a)) idx = [...sb.querySelectorAll(FOC)].indexOf(a);
+  if (a && sb.contains(a)) key = a.dataset.u ? `.item[data-u="${CSS.escape(a.dataset.u)}"]` : a.dataset.rec ? `[data-rec="${CSS.escape(a.dataset.rec)}"]` : a.id ? '#' + CSS.escape(a.id) : null;
+  const caret = a === q ? [q.selectionStart, q.selectionEnd, q.selectionDirection] : null;
+  fn();
+  sb.scrollTop = top;
+  if (key || idx >= 0) { const el = (key && sb.querySelector(key)) || (!key && sb.querySelectorAll(FOC)[idx]); (el || $('sTitle')).focus({ preventScroll: true }); }
+  else if (a && a !== document.body && a.isConnected && document.activeElement !== a) a.focus({ preventScroll: true });
+  if (caret && document.activeElement === q) try { q.setSelectionRange(...caret); } catch {}
+}
+const refresh = () => { if (document.visibilityState === 'visible' && !$('sheet').classList.contains('drag')) keepView(render); };
+setInterval(refresh, 60000);
+document.addEventListener('visibilitychange', refresh);
 
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); INST = e; render(); });
 addEventListener('appinstalled', () => { INST = null; render(); toast('נוסף למסך הבית'); });
-$('sbody').addEventListener('click', async e => { if (!e.target.closest('#inst')) return; if (INST) { INST.prompt(); try { await INST.userChoice; } catch {} INST = null; render(); } else toast('בספארי: כפתור השיתוף ואז "הוספה למסך הבית"'); });
+$('sbody').addEventListener('click', e => { if (e.target.closest('#inst')) doInstall(); });
 function netBar() { const off = navigator.onLine === false; $('offl').hidden = !off; if (off) $('offl').textContent = 'אין חיבור. מוצג המידע השמור מ־' + fmtDate(DATA_UPDATED) + '. במפה רק אזורים שכבר נצפו.'; }
 addEventListener('offline', netBar); addEventListener('online', netBar); netBar();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -825,28 +996,39 @@ const okPlace = p => isObj(p)
   && Array.isArray(p.t) && p.t.every(t => T_OK.includes(t)) && new Set(p.t).size === p.t.length
   && (p.p === '' || (isStr(p.p) && PH.test(p.p)))
   && typeof p.fri === 'boolean'
+  && (p.aka === undefined || (Array.isArray(p.aka) && p.aka.every(x => isStr(x) && /^[0-9a-f]{7,8}$/.test(x))))
   && (p.g === undefined || okG(p.g));
-const okSet = a => Array.isArray(a) && a.length >= 100 && a.every(okPlace) && new Set(a.map(p => p.u)).size === a.length;
+const okSet = a => Array.isArray(a) && a.length >= 100 && a.every(okPlace) && new Set(a.map(p => p.u)).size === a.length
+  && !a.some(p => (p.aka || []).some(x => a.some(q => q.u === x))); // an alias never points at a live id
+const okCities = c => isObj(c) && Object.keys(c).length >= 1 && Object.entries(c).every(([k, v]) => k !== '' && Array.isArray(v) && v.length === 2 && isNum(v[0]) && isNum(v[1]) && v[0] >= 29.3 && v[0] <= 33.5 && v[1] >= 34.2 && v[1] <= 35.95);
 const okMeta = m => isObj(m) && isStr(m.updated) && /^20\d\d-\d\d-\d\d$/.test(m.updated) && Number.isInteger(m.rev) && m.rev >= 1;
-Promise.all(['places.json', 'meta.json'].map(f => fetch(RAW + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)))
-  .then(([a, meta]) => {
-    // rev goes up with every data change, so a same-day update is picked up too
-    if (!okMeta(meta) || meta.rev <= DATA_REV || !okSet(a)) return;
+// meta.json first (tiny); places.json and cities.json only when rev went up, so a visit with no data change downloads
+// almost nothing. cities.json is optional: valid towns are merged (a new town gets its centre), otherwise ignored (P1-16)
+const getRaw = f => fetch(RAW + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null);
+getRaw('meta.json').then(meta => {
+  // rev goes up with every data change, so a same-day update is picked up too
+  if (!okMeta(meta) || meta.rev <= DATA_REV) return;
+  return Promise.all([getRaw('places.json'), getRaw('cities.json')]).then(([a, cities]) => {
+    if (!okSet(a)) return;
+    if (okCities(cities)) Object.assign(CITY, cities);
     const cur = sel != null ? PLACES[sel] : null;
     PLACES.length = 0;
     a.forEach((p, i) => { p.id = i; p.hay = norm([p.n,p.s,p.c,p.h,p.f,p.tt,HC[p.hc]].join(' ')); PLACES.push(p); });
     DATA_UPDATED = meta.updated; DATA_REV = meta.rev | 0;
-    if (cur) { const m = PLACES.find(p => p.n === cur.n && p.s === cur.s && p.c === cur.c && p.k === cur.k); sel = m ? m.id : null; }
-    shown = 40; render();
-  }).catch(() => {});
+    if (cur) { const m = byU(cur.u); sel = m ? m.id : null; } // by the permanent id (or its alias), not by name
+    migrateIds(); shown = 40; keepView(render);
+  });
+}).catch(() => {});
 
 // links: ?p=<id> opens a place (shared links); ?open=1 and ?near=1 come from the home-screen shortcuts
 const QS = new URLSearchParams(location.search);
 if (QS.get('open') === '1') S.open = true;
+migrateIds();
+// the address is cleaned before any history entry is added, so Back from a shared card returns to the list, not to ?p=
+if (QS.toString() || hDepth()) history.replaceState(null, '', location.pathname);
 render(); snap('peek'); initMap();
 { const p = QS.get('p') && byU(QS.get('p')); if (p) { detail(p); snap('half'); const ll = LLof(p); if (ll) setTimeout(() => panTo(ll), 600); } }
 if (QS.get('near') === '1') gps();
-if (QS.toString()) history.replaceState(null, '', location.pathname);
 if (navigator.permissions) navigator.permissions.query({ name:'geolocation' }).then(r => { if (r.state === 'granted') gps(); }).catch(() => {});
 })();
 </script>

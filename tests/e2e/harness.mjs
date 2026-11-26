@@ -48,7 +48,7 @@ export const il = (y, mo, d, h, mi) => new Date(Date.UTC(y, mo - 1, d, h - 2, mi
 export const TUE = il(2026, 12, 1, 12, 30), FRI = il(2026, 11, 27, 12, 0), TUE_NIGHT = il(2026, 12, 1, 23, 30);
 
 /**
- * opts: { time, viewport, dark, reduced, geo, mobile, ua, liveData: {places, meta} | null, ls: {key: value} }
+ * opts: { time, clockInstall, viewport, dark, reduced, geo, mobile, ua, liveData: {places, meta} | null, ls: {key: value} }
  * returns { ctx, page, log } – log.errors (console + page errors), log.external (blocked hosts), log.req (urls)
  */
 export async function open(browser, path = '/', opts = {}) {
@@ -61,7 +61,8 @@ export async function open(browser, path = '/', opts = {}) {
   };
   if (opts.geo) { ctxo.geolocation = opts.geo; ctxo.permissions = ['geolocation']; }
   const context = await browser.newContext(ctxo);
-  await context.clock.setFixedTime(opts.time || TUE);
+  // clockInstall: page timers are fake too and move only with page.clock.runFor (for the 60 s refresh)
+  if (opts.clockInstall) await context.clock.install({ time: opts.time || TUE }); else await context.clock.setFixedTime(opts.time || TUE);
   if (opts.ls) await context.addInitScript(ls => { if (!sessionStorage.getItem('__lsdone')) { for (const [k, v] of Object.entries(ls)) localStorage.setItem(k, v); sessionStorage.setItem('__lsdone', '1'); } }, opts.ls);
   const live = opts.liveData === undefined ? { places: DATA, meta: META } : opts.liveData;
   await context.route('**/*', async route => {
@@ -85,7 +86,7 @@ export async function open(browser, path = '/', opts = {}) {
     if (url.hostname === 'raw.githubusercontent.com') {
       if (!live) return route.fulfill({ status: 503, body: '' });
       const name = url.pathname.split('/').pop();
-      const body = name === 'places.json' ? live.places : name === 'meta.json' ? live.meta : null;
+      const body = name === 'places.json' ? live.places : name === 'meta.json' ? live.meta : name === 'cities.json' ? (live.cities ?? CITIES) : null;
       if (body == null) return route.fulfill({ status: 404, body: '' });
       return route.fulfill({ contentType: 'application/json', body: typeof body === 'string' ? body : JSON.stringify(body) });
     }
@@ -94,7 +95,9 @@ export async function open(browser, path = '/', opts = {}) {
     return route.abort();
   });
   const page = await context.newPage();
-  const liveP = opts.waitLive ? Promise.all(['meta.json', 'places.json'].map(n => page.waitForResponse(r => r.url().startsWith('https://raw.githubusercontent.com/') && r.url().endsWith(n), { timeout: 10000 }))) : null;
+  // the app asks for meta.json first and for places.json / cities.json only when rev went up
+  const rawResp = (n, timeout) => page.waitForResponse(r => r.url().startsWith('https://raw.githubusercontent.com/') && r.url().endsWith(n), { timeout });
+  const liveP = opts.waitLive ? rawResp('meta.json', 10000).then(() => rawResp('places.json', 1500).catch(() => null)) : null;
   page.on('console', m => { if (m.type() === 'error') log.errors.push('console: ' + m.text()); });
   page.on('pageerror', e => log.errors.push('pageerror: ' + e.message));
   await page.goto(ORIGIN + (opts.blank ? '/__blank.html' : path));
