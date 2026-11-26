@@ -44,21 +44,33 @@ function openIntervals(periods) {
   for (const [o, c] of raw) { const last = out[out.length - 1]; if (last && o <= last[1]) last[1] = Math.max(last[1], c); else out.push([o, c]); }
   return out;
 }
+// A boundary at exactly 00:00 belongs to the night that it ends, never to the day it starts (one rule for
+// open and close, docs/terms.md, DECISIONS 26.11): nd = days from today to that night, dow = the weekday whose
+// night it is. Tonight is told by the callers ('עד 00:00', 'הלילה'), except before 06:00, when the weekday is
+// named (nd = 0). The night after Shabbat is 'מוצאי שבת'.
+function nightName(nd, dow, planned) {
+  if (dow === 6) return 'מוצאי שבת';
+  return nd === 1 ? (planned ? 'למחרת בלילה' : 'מחר בלילה') : 'יום ' + DAYS[dow] + ' בלילה';
+}
+// the same night after 'נפתח': 'במוצאי שבת', 'ביום X בלילה', 'מחר בלילה'
+const nightIn = (nd, dow, planned) => (nd === 1 && dow !== 6 ? '' : 'ב') + nightName(nd, dow, planned);
 // status of a place at a given Israel wall-clock time. planned = the user picked a future time.
 function statusAt(p, now, planned) {
   if (p.g && p.g.closed) return { s:'x', t: p.g.closed === 'סגור לצמיתות' ? 'נסגר לצמיתות (לפי גוגל)' : 'סגור זמנית (לפי גוגל)', r:4 };
-  const g = p.g, wm = now.getDay()*1440 + now.getHours()*60 + now.getMinutes();
+  const g = p.g, wm = now.getDay()*1440 + now.getHours()*60 + now.getMinutes(), early = now.getHours() < 6;
   if (g && g.periods && g.periods.length) {
     const iv = openIntervals(g.periods);
     for (const [o, c] of iv) if (wm >= o && wm < c) {
       if (c - o >= WEEK) return { s:'y', t:'פתוח 24 שעות', r:0 };
       const left = c - wm;
       if (left <= 60) return { s:'s', t: planned ? 'נסגר ב־' + hhmm(c % 1440) : 'נסגר בעוד ' + left + ' דק׳', r:0 };
-      // the day of the close, with 00:00 counted as midnight of the day before
+      // the day of the close; a close at exactly 00:00 is the end of the day before ("<day> בלילה ב־00:00", nightName)
       const cm = c % 1440, k = c - (cm === 0 ? 1 : 0), kd = Math.floor((wm % 1440 + k - wm) / 1440);
       // tonight, or a late-night close (until 06:00 next morning): the hour alone; further away the day is named
-      if (kd === 0 || (kd === 1 && cm > 0 && cm <= 360)) return { s:'y', t:'פתוח עד ' + hhmm(cm), r:0 };
-      const day = kd === 1 ? (planned ? 'למחרת' : 'מחר') : 'יום ' + DAYS[Math.floor(k / 1440) % 7];
+      // (before 06:00 'עד 00:00' would read as the night now ending, so tonight's 00:00 is named by its weekday)
+      if ((kd === 0 && !(cm === 0 && early)) || (kd === 1 && cm > 0 && cm <= 360)) return { s:'y', t:'פתוח עד ' + hhmm(cm), r:0 };
+      const day = cm === 0 ? nightName(kd, Math.floor(k / 1440) % 7, planned)
+        : kd === 1 ? (planned ? 'למחרת' : 'מחר') : 'יום ' + DAYS[Math.floor(k / 1440) % 7];
       return { s:'y', t:'פתוח עד ' + day + ' ב־' + hhmm(cm), r:0 };
     }
     const shut = planned ? 'סגור בשעה הזו' : 'סגור עכשיו';
@@ -66,7 +78,9 @@ function statusAt(p, now, planned) {
     if (!nx) return { s:'n', t:shut, r:3 };
     const u = nx[0] - wm, od = Math.floor(nx[0] / 1440) % 7;
     const dd = Math.floor((wm % 1440 + u) / 1440);
-    const when = dd === 0 ? (planned ? '' : 'היום ') : dd === 1 ? (planned ? 'למחרת ' : 'מחר ') : 'ביום ' + DAYS[od] + ' ';
+    // an opening at 00:00 is told by the night it ends, like a close: Motzei Shabbat 21:00 -> 'נפתח הלילה ב־00:00'
+    const when = nx[0] % 1440 === 0 ? (dd === 1 && !early ? (planned ? '' : 'הלילה ') : nightIn(dd - 1, (od + 6) % 7, planned) + ' ')
+      : dd === 0 ? (planned ? '' : 'היום ') : dd === 1 ? (planned ? 'למחרת ' : 'מחר ') : 'ביום ' + DAYS[od] + ' ';
     const opens = 'נפתח ' + when + 'ב־' + hhmm(nx[0] % 1440);
     return u < 20*60 ? { s:'n', t:opens, r:1 } : { s:'n', t:shut + ' · ' + opens, r:3 };
   }
