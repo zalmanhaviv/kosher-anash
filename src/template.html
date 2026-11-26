@@ -614,10 +614,20 @@ function paint() {
   const list = sel != null && !base.some(r => r.p.id === sel) ? base.concat([{ p: PLACES[sel], st: status(PLACES[sel]) }]) : base;
   if (z < 11.5) {
     const cnt = {}; list.forEach(r => cnt[r.p.c] = (cnt[r.p.c] || 0) + 1);
-    for (const c in cnt) { const ll = cityLL(c); if (!ll) continue;
-      const el = mkEl(`<div class="cl" title="${esc(c)}">${cnt[c]}</div>`);
-      el.onclick = ev => { ev.stopPropagation(); ease({ center:[ll.lng, ll.lat], zoom:14.5 }); };
-      markers.push(new maplibregl.Marker({ element: el }).setLngLat([ll.lng, ll.lat]).addTo(map)); }
+    // town clusters merged on screen: a town closer than one badge (+ margin) to a bigger cluster joins it (QA1-7)
+    const gap = tok('--cl') + tok('--s3'), groups = [];
+    Object.keys(cnt).filter(c => cityLL(c)).sort((a, b) => cnt[b] - cnt[a] || a.localeCompare(b, 'he')).forEach(c => {
+      const ll = cityLL(c), pt = map.project([ll.lng, ll.lat]);
+      const g = groups.find(g => Math.hypot(g.pt.x - pt.x, g.pt.y - pt.y) < gap);
+      if (g) { g.n += cnt[c]; g.towns.push(c); } else groups.push({ ll, pt, n: cnt[c], towns: [c] });
+    });
+    for (const g of groups) {
+      const el = mkEl(`<div class="cl" title="${esc(g.towns.join(', '))}">${g.n}</div>`);
+      el.onclick = ev => { ev.stopPropagation();
+        if (g.towns.length === 1) return ease({ center:[g.ll.lng, g.ll.lat], zoom:14.5 });
+        const lls = g.towns.map(cityLL), lo = lls.map(x => x.lng), la = lls.map(x => x.lat);
+        map.fitBounds([[Math.min(...lo), Math.min(...la)], [Math.max(...lo), Math.max(...la)]], Object.assign({ padding: 80, maxZoom: 14.5 }, RM ? { duration: 0 } : {})); };
+      markers.push(new maplibregl.Marker({ element: el }).setLngLat([g.ll.lng, g.ll.lat]).addTo(map)); }
     return;
   }
   const seen = {};
