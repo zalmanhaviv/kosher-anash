@@ -142,19 +142,21 @@ test('tile cache cap holds across worker restarts: 8 visits of 10 new tiles, the
 });
 
 test('tile cache is trimmed on activate (a full cache from an older worker)', async () => {
-  swBody = SW.replace('MAX_TILES = 900', 'MAX_TILES = 5');
+  // the first worker keeps the real cap, so the map's own tiles (GL map in CI) do not trim the 60 put here
+  const r = await openApp();
   try {
-    const r = await openApp();
     await r.page.evaluate(async () => { const c = await caches.open('tiles-1'); for (let i = 0; i < 60; i++) await c.put(`https://tiles.openfreemap.org/planet/v/14/${i}/1.pbf`, new Response('x')); });
     assert.equal(await tileCount(r.page), 60);
     swBody = SW.replace('MAX_TILES = 900', 'MAX_TILES = 5').replace(`const V = "${VER}"`, 'const V = "trimbuild000"');
     await r.page.evaluate(() => navigator.serviceWorker.getRegistration().then(g => g.update()));
     await until(() => r.page.evaluate(() => caches.keys().then(k => k.includes('shell-trimbuild000') && k.filter(x => x.startsWith('shell-')).length === 1)), 20000);
     await until(async () => await tileCount(r.page) <= 5, 5000);
-    const k = (await cacheKeys(r.page))['tiles-1'].filter(u => u.includes('/planet/v/'));
-assert.deepEqual(k.map(u => +/\/14\/(\d+)\//.exec(u)[1]), [55, 56, 57, 58, 59], 'the newest five');
-    await r.ctx.close();
-  } finally { swBody = null; }
+    const all = (await cacheKeys(r.page))['tiles-1'];
+    assert.ok(all.length <= 5, 'all tiles ' + all.length);
+    // the newest are kept (the map may have stored a few of its own after these)
+    const ids = all.filter(u => u.includes('/planet/v/')).map(u => +/\/14\/(\d+)\//.exec(u)[1]);
+    assert.ok(ids.length > 0 && ids.every(i => i >= 55) && ids.includes(59), 'kept ' + ids.join(','));
+  } finally { swBody = null; await r.ctx.close(); }
 });
 
 // the page through the worker on a slow connection: headers and the first part at once, the rest after SLOW ms
