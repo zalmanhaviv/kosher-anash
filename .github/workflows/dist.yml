@@ -1,0 +1,29 @@
+# Manual only: builds the release dist/ (with the pinned vendor files) and publishes it to the `dist` branch,
+# so the owner-approved upload to Netlify can take the exact tested files. Never deploys by itself.
+name: dist
+on: workflow_dispatch
+permissions: { contents: write }
+jobs:
+  dist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: python3 scripts/validate.py
+      - run: for tz in Asia/Jerusalem America/New_York UTC; do TZ=$tz node --test tests/logic.test.mjs; done
+      - run: sh scripts/fetch_vendor.sh
+      - name: Build (release)
+        run: python3 scripts/build.py
+      - name: Publish dist/ to the dist branch
+        run: |
+          test ! -e dist/NOT-FOR-RELEASE.txt
+          cd dist
+          find . -type f ! -name files.txt | sed 's|^\./||' | sort > files.txt
+          git init -q -b dist
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -qm "dist from ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" dist
