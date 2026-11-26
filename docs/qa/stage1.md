@@ -9,11 +9,16 @@
 ## איך מריצים
 ```
 python3 scripts/build.py
-node --test --test-concurrency=1 tests/e2e/app.e2e.mjs     # 53 בדיקות, ~63 שנ׳ מקומית, ~74 שנ׳ ב-CI
+node --test --test-concurrency=1 tests/e2e/app.e2e.mjs     # בסוף שלב 1: 53 בדיקות; היום (26.11, סוף שלב 2): 93, מהן 8 todo – ראו docs/qa/stage2.md
 node tests/e2e/visual.mjs            # השוואה לצילומי הבסיס (ידני, לא ב-CI)
 node tests/e2e/visual.mjs --update   # צילומי בסיס חדשים
 ```
 בבדיקות `todo` (QA1-x, REVIEW-x) – באגים ידועים: הן רצות ומדווחות, לא מכשילות את הריצה. כשבאג מתוקן – מסירים את `todo` מהבדיקה.
+
+## מצב נכון ל-26.11 (סוף שלב 2)
+- QA1-1 עד QA1-7 תוקנו ב-S1-9. ה-`todo` הוסר מהבדיקות שלהם, והן עוברות. גם REVIEW #2 ו-#3 תוקנו ב-S1-9, ו-REVIEW #4 ב-S2-2 (`/vendor/fonts.css` הוסר; ה-harness כבר לא מחליף אותו).
+- בסוף שלב 1 היו 53 בדיקות E2E (45 עוברות + 8 todo). אחרי S1-9: 60/60. אחרי S2-1: 79/79. אחרי S2-4: 81/81. אחרי QA שלב 2: 93 (85 עוברות + 8 todo של שלב 2).
+- `tests/visual/baseline/` – 8 צילומים (2 חדשים ב-360×640). פירוט ב-`docs/qa/stage2.md`.
 
 ## טבלת תוצאות
 
