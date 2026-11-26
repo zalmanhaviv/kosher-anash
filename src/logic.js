@@ -59,7 +59,7 @@ function statusAt(p, now, planned) {
       // tonight, or a late-night close (until 06:00 next morning): the hour alone; further away the day is named
       if (kd === 0 || (kd === 1 && cm > 0 && cm <= 360)) return { s:'y', t:'פתוח עד ' + hhmm(cm), r:0 };
       const day = kd === 1 ? (planned ? 'למחרת' : 'מחר') : 'יום ' + DAYS[Math.floor(k / 1440) % 7];
-      return { s:'y', t:'פתוח עד ' + day + (cm === 0 ? ' בחצות' : ' ב־' + hhmm(cm)), r:0 };
+      return { s:'y', t:'פתוח עד ' + day + ' ב־' + hhmm(cm), r:0 };
     }
     const shut = planned ? 'סגור בשעה הזו' : 'סגור עכשיו';
     const nx = iv.find(([o]) => o > wm);
