@@ -1,4 +1,4 @@
-// Visual regression: four fixed screens (clock frozen Tuesday 1.12.2026 12:30 Israel, blank map tiles, reduced motion).
+// Visual regression: eight fixed screens (clock frozen Tuesday 1.12.2026 12:30 Israel, blank map tiles, reduced motion).
 //   node tests/e2e/visual.mjs            compare with tests/visual/baseline/*.png (writes diffs to tests/visual/out/)
 //   node tests/e2e/visual.mjs --update   write a new baseline
 // Not in CI: the map is drawn by WebGL (SwiftShader) and fonts are rasterised by the local Chrome, so pixels differ
@@ -9,7 +9,7 @@ import { launch, open, mapReady, TUE, ROOT } from './harness.mjs';
 
 const BASE = join(ROOT, 'tests/visual/baseline'), OUT = join(ROOT, 'tests/visual/out');
 const UPDATE = process.argv.includes('--update');
-const PHONE = { width: 390, height: 844 }, DESK = { width: 1280, height: 800 };
+const PHONE = { width: 390, height: 844 }, P360 = { width: 360, height: 640 }, DESK = { width: 1280, height: 800 };
 const SHOTS = [
   ['phone-light-list', '/', { viewport: PHONE, mobile: true }],
   ['phone-dark-list', '/', { viewport: PHONE, mobile: true, dark: true }],
@@ -17,6 +17,8 @@ const SHOTS = [
   ['phone-dark-card', '/?p=565847f', { viewport: PHONE, mobile: true, dark: true }],
   ['desktop-light', '/', { viewport: DESK }],
   ['desktop-dark-card', '/?p=347ac19', { viewport: DESK, dark: true }],
+  ['phone360-light-list', '/', { viewport: P360, mobile: true }],
+  ['phone360-dark-card', '/?p=565847f', { viewport: P360, mobile: true, dark: true }],
 ];
 
 const b = await launch(); mkdirSync(BASE, { recursive: true }); mkdirSync(OUT, { recursive: true });
