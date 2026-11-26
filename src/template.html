@@ -72,8 +72,8 @@ button:active{transform:scale(var(--press))}
 :focus{outline:none}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 [hidden]{display:none!important}
-/* the script still names the old font inline (kashrut letter, svg map) – Rubik wins */
-[style*="Assistant"],text{font-family:var(--font)!important}
+/* svg fallback map labels use the app font */
+text{font-family:var(--font)!important}
 
 /* ---------- map ---------- */
 #map{position:fixed;inset:0;z-index:0;background:var(--map-bg)}
@@ -174,7 +174,7 @@ button:active{transform:scale(var(--press))}
 .acts .off{color:var(--sub);opacity:.6;pointer-events:none;box-shadow:none;background:transparent}
 .acts small{display:block;font-size:var(--fs-xs);font-weight:var(--fw-text);direction:ltr;white-space:nowrap;color:var(--sub);font-variant-numeric:tabular-nums}.acts a span{text-align:center}
 .kbox{display:flex;gap:var(--s3);align-items:center;padding:var(--pad-card);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-card)}
-.kbox .ks{flex:0 0 var(--kb-big);height:var(--kb-big);border-radius:50%;display:grid;place-items:center;color:var(--on-k);font-weight:var(--fw-head)!important}
+.kbox .ks{flex:0 0 var(--kb-big);height:var(--kb-big);border-radius:50%;display:grid;place-items:center;color:var(--on-k);font:var(--fw-head) var(--fs-lg)/1 var(--font)}
 .kbox .kt{font-size:var(--fs-sm);color:var(--sub);font-weight:var(--fw-med)}
 .kbox .kn{font-size:var(--fs-input);font-weight:var(--fw-med);line-height:1.35}
 .ksrc{font-size:var(--fs-xs);color:var(--sub);margin-top:var(--s1);line-height:1.45}
@@ -519,7 +519,7 @@ function detail(p, keepScroll) {
       <button type="button" id="share">${IC.share}שיתוף</button>
       ${phone ? `<a href="tel:${esc(phone.replace(/[^\d+]/g,''))}" aria-label="חיוג ${esc(phone)}">${IC.tel}<span>חיוג <small>${esc(phone)}</small></span></a>` : `<a class="off">${IC.tel}אין טלפון</a>`}
     </div>
-    <div class="kbox"><span class="ks b-${p.hc}" style="font:800 var(--fs-lg) Assistant,sans-serif">${HL[p.hc]}</span><div><div class="kt">כשרות</div><div class="kn">${esc(p.h || HC[p.hc])}</div><div class="ksrc">לפי מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה</div></div></div>
+    <div class="kbox"><span class="ks b-${p.hc}">${HL[p.hc]}</span><div><div class="kt">כשרות</div><div class="kn">${esc(p.h || HC[p.hc])}</div><div class="ksrc">לפי מאגר מסעדות לאנ״ש חב״ד, ניסן ה׳תשפ״ה</div></div></div>
     <div class="dl"><h4>שעות פתיחה</h4>${hrs ? `<div class="hrs">${hrs}</div>` : p.fri ? `<div>פתוח בליל שישי (לפי המאגר), השעות לא ידועות</div>` : `<div style="color:var(--sub);font-weight:600">${NOINFO}</div>`}${doubtful(p) ? `<div class="src"><span class="stale">${DOUBT}</span></div>` : ''}${hrs ? srcLine(g) : ''}${fri}</div>
     <div class="report-slot" aria-hidden="true"></div>
     <p class="warn">יש לבדוק את תעודת הכשרות במקום העסק.${exact(p) ? '' : ' המיקום במפה משוער, לפי מרכז הישוב.'}</p>
@@ -654,10 +654,11 @@ function drawSvg() {
   if (!svgVB) { const c = ME ? PX(ME.lat, ME.lng) : PX(32.2, 35.0); const w = 150; svgVB = [c[0]-w/2, c[1]-w*1.1, w, w*2]; }
   svg.setAttribute('viewBox', svgVB.join(' ')); svg.setAttribute('preserveAspectRatio','xMidYMid meet');
   const sc = svgVB[2]/300, cnt = {}; rows.forEach(r => { if (r.st.s !== 'x') cnt[r.p.c] = (cnt[r.p.c]||0) + 1; });
-  let g = `<rect x="-999" y="-999" width="3000" height="3000" fill="#e4ebf1"/><polygon points="${OUT.map(([a,b]) => PX(a,b).map(v=>v.toFixed(1)).join(',')).join(' ')}" fill="#f7f7f5" stroke="#d3d9e0" stroke-width="${sc}"/>`;
+  // colours are design tokens (style, not attributes, so var() works and light/dark switches live)
+  let g = `<rect x="-999" y="-999" width="3000" height="3000" style="fill:var(--brand-tint)"/><polygon points="${OUT.map(([a,b]) => PX(a,b).map(v=>v.toFixed(1)).join(',')).join(' ')}" style="fill:var(--map-bg);stroke:var(--line-strong)" stroke-width="${sc}"/>`;
   for (const c in cnt) { if (!CITY[c]) continue; const [x,y] = PX(...CITY[c]); const r = (7 + Math.sqrt(cnt[c])*1.6)*sc;
-    g += `<g data-c="${esc(c)}" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="${r}" fill="#1d3a6e" stroke="#fff" stroke-width="${2*sc}"/><text x="${x}" y="${y+3.6*sc}" font-size="${10*sc}" fill="#fff" text-anchor="middle" font-weight="700" font-family="Assistant" pointer-events="none">${cnt[c]}</text></g>`; }
-  if (ME) { const [x,y] = PX(ME.lat, ME.lng); g += `<circle cx="${x}" cy="${y}" r="${5*sc}" fill="#2b7cff" stroke="#fff" stroke-width="${2*sc}"/>`; }
+    g += `<g data-c="${esc(c)}" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="${r}" style="fill:var(--brand);stroke:var(--pin-ring)" stroke-width="${2*sc}"/><text x="${x}" y="${y+3.6*sc}" font-size="${10*sc}" style="fill:var(--on-brand)" text-anchor="middle" font-weight="600" pointer-events="none">${cnt[c]}</text></g>`; }
+  if (ME) { const [x,y] = PX(ME.lat, ME.lng); g += `<circle cx="${x}" cy="${y}" r="${5*sc}" style="fill:var(--me);stroke:var(--pin-ring)" stroke-width="${2*sc}"/>`; }
   svg.innerHTML = g;
 }
 $('svgmap').addEventListener('click', e => { const t = e.target.closest('[data-c]'); if (!t) return; S.city = t.dataset.c; sel = null; shown = 40; render(); snap('half'); });
