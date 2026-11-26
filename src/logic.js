@@ -5,15 +5,25 @@ const IL_F = (() => { try { return new Intl.DateTimeFormat('en-US', { timeZone:'
 const IL = (d = new Date()) => { if (!IL_F) return new Date(d); const p = {}; for (const x of IL_F.formatToParts(d)) p[x.type] = x.value; return new Date(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second); };
 const rad = x => x * Math.PI / 180;
 const hhmm = m => String(Math.floor(m/60)%24).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
-// sunset (NOAA approximation, no external service) -> candle lighting by Chabad custom: 18 min before sunset, Jerusalem 40
+// sunset at sea level by the NOAA solar calculator (Meeus; the algorithm Hebcal and KosherJava use), computed
+// on the device with no external service; evaluated again at the sunset instant for accuracy.
+// candles(): Chabad custom, 18 min before sunset, Jerusalem 40; seconds are dropped (never later than the minute).
 function sunset(ll, day) {
-  const y = day.getFullYear(), mo = day.getMonth(), d = day.getDate();
-  const N = Math.round((Date.UTC(y, mo, d) - Date.UTC(y, 0, 1)) / 864e5) + 1;
-  const g = 2 * Math.PI / 365 * (N - 1 + (18 - 12) / 24);
-  const eq = 229.18 * (0.000075 + 0.001868*Math.cos(g) - 0.032077*Math.sin(g) - 0.014615*Math.cos(2*g) - 0.040849*Math.sin(2*g));
-  const dec = 0.006918 - 0.399912*Math.cos(g) + 0.070257*Math.sin(g) - 0.006758*Math.cos(2*g) + 0.000907*Math.sin(2*g) - 0.002697*Math.cos(3*g) + 0.00148*Math.sin(3*g);
-  const la = rad(ll.lat), ha = Math.acos(Math.cos(rad(90.833)) / (Math.cos(la)*Math.cos(dec)) - Math.tan(la)*Math.tan(dec)) * 180 / Math.PI;
-  return new Date(Date.UTC(y, mo, d) + (720 - 4*(ll.lng - ha) - eq) * 60000);
+  const y = day.getFullYear(), mo = day.getMonth(), d = day.getDate(), s = x => Math.sin(rad(x)), co = x => Math.cos(rad(x));
+  let t = 1080;                                   // minutes after 00:00 UTC, first guess
+  for (let i = 0; i < 3; i++) {
+    const T = (Date.UTC(y, mo, d) / 864e5 + 2440587.5 + t / 1440 - 2451545) / 36525;
+    const L = ((280.46646 + T*(36000.76983 + T*0.0003032)) % 360 + 360) % 360;
+    const M = 357.52911 + T*(35999.05029 - 0.0001537*T), e = 0.016708634 - T*(0.000042037 + 0.0000001267*T);
+    const C = s(M)*(1.914602 - T*(0.004817 + 0.000014*T)) + s(2*M)*(0.019993 - 0.000101*T) + s(3*M)*0.000289;
+    const om = 125.04 - 1934.136*T, lam = L + C - 0.00569 - 0.00478*s(om);
+    const eps = 23 + (26 + (21.448 - T*(46.815 + T*(0.00059 - T*0.001813))) / 60) / 60 + 0.00256*co(om);
+    const dec = Math.asin(s(eps) * s(lam)), v = Math.tan(rad(eps) / 2) ** 2;
+    const eq = 4 * 180 / Math.PI * (v*s(2*L) - 2*e*s(M) + 4*e*v*s(M)*co(2*L) - 0.5*v*v*s(4*L) - 1.25*e*e*s(2*M));
+    const la = rad(ll.lat), ha = Math.acos(co(90.833) / (Math.cos(la)*Math.cos(dec)) - Math.tan(la)*Math.tan(dec)) * 180 / Math.PI;
+    t = 720 - 4*ll.lng - eq + 4*ha;
+  }
+  return new Date(Date.UTC(y, mo, d) + t * 60000);
 }
 function candles(city, ll, day) { const ss = sunset(ll, day); const min = city === 'ירושלים' ? 40 : 18; const c = IL(new Date(ss.getTime() - min*60000)); return hhmm(c.getHours()*60 + c.getMinutes()); }
 const NOINFO = 'אין מידע על שעות הפעילות';
