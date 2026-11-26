@@ -21,26 +21,35 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => !KEEP.includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))))
+    .then(() => trimNow().catch(() => {})).then(() => self.clients.claim()));
 });
 
 const timeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
 const okNet = r => fetch(r).then(res => res.ok ? res : Promise.reject(new Error('http ' + res.status)));
 
-// tiles: trimmed to the MAX_TILES most recently stored every 40 new tiles (so never more than MAX_TILES + 40), oldest first
-let added = 0, trimming = null;
+// tiles: the cache is cut to the MAX_TILES most recently stored (oldest first), counted from the cache itself, not from
+// memory: on activate, on the first tile each time the browser starts this worker (it stops it after ~30 s idle, which
+// resets every variable here), and then every 40 new tiles. So the cache never holds more than MAX_TILES + 40 tiles,
+// however the visits are split between worker restarts.
+let added = 40, trimming = null;
+const trimNow = async () => { const c = await caches.open(TILES); const k = await c.keys(); for (const r of k.slice(0, Math.max(0, k.length - MAX_TILES))) await c.delete(r); };
 function trimTiles() {
-  if (++added < 40 || trimming) return; added = 0;
-  trimming = (async () => { const c = await caches.open(TILES); const k = await c.keys(); for (const r of k.slice(0, Math.max(0, k.length - MAX_TILES))) await c.delete(r); })().finally(() => { trimming = null; });
+  if (++added < 40 || trimming) return null; added = 0;
+  return trimming = trimNow().catch(() => {}).finally(() => { trimming = null; });
 }
 
-// the page: from the network, but after NAV_WAIT on a weak connection (or offline) from the cache
-async function page(e) {
-  const c = await caches.open(SHELL);
-  const net = okNet(e.request).then(async res => { if ((res.headers.get('content-type') || '').includes('text/html')) await c.put('/', res.clone()); return res; });
-  e.waitUntil(net.catch(() => {}));
-  const hit = await c.match('/') || await caches.match('/');
-  try { return await (hit ? timeout(net, NAV_WAIT) : net); } catch { return hit || net; }
+// the page: the network answer is handed on as soon as its headers arrive, so it streams into the page; a copy is
+// stored in the background (Cache.put reads the whole body). After NAV_WAIT without headers (weak connection) or
+// offline, the cached page.
+function page(e) {
+  const net = okNet(e.request);
+  // clone at once (before the page starts reading the body), store after the body arrived
+  e.waitUntil(net.then(res => (res.headers.get('content-type') || '').includes('text/html') && res.clone()).then(async copy => { if (copy) await (await caches.open(SHELL)).put('/', copy); }).catch(() => {}));
+  return (async () => {
+    const hit = await (await caches.open(SHELL)).match('/') || await caches.match('/');
+    try { return await (hit ? timeout(net, NAV_WAIT) : net); } catch { return hit || net; }
+  })();
 }
 
 // this build's files: from its cache (same version = same bytes)
@@ -88,7 +97,7 @@ async function data(e, r) {
 async function map(e, r, isTile) {
   const c = await caches.open(isTile ? TILES : MAPX);
   const hit = await c.match(r, { ignoreVary: true });
-  const net = fetch(r).then(async res => { if (res.ok) { await c.put(r, res.clone()); if (isTile) trimTiles(); } return res; });
+  const net = fetch(r).then(async res => { if (res.ok) { await c.put(r, res.clone()); const t = isTile && trimTiles(); if (t) e.waitUntil(t); } return res; });
   if (hit) { e.waitUntil(net.catch(() => {})); return hit; }
   try { return await net; } catch {
     const p = new URL(r.url).pathname;
