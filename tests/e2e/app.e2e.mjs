@@ -969,3 +969,131 @@ describe('S2-1 map-ux', () => {
     await done(r);
   });
 });
+
+// ================= stage 2 QA (docs/qa/stage2.md) =================
+// Known bugs are `todo`: they run and report, but do not fail CI. When a bug is fixed, remove its `todo`.
+describe('stage 2 QA', () => {
+  const PHONE360 = { width: 360, height: 640 };
+  const SAT_NIGHT = il(2026, 11, 28, 20, 0), FRI_EVE = il(2026, 11, 27, 17, 0);
+  const ae = page => page.evaluate(() => { const a = document.activeElement; return { body: !a || a === document.body, inCard: !!(a && a.closest && a.closest('.det')), u: a && a.dataset ? a.dataset.u || '' : '' }; });
+
+  test('QA2-2 keyboard: opening a card moves focus into it', { todo: 'QA2-2 map-ux: src/template.html:592-628 (detail)' }, async () => {
+    const r = await go('/', { viewport: DESK, time: TUE });
+    const { page } = r;
+    await page.focus('#sbody .item'); await page.keyboard.press('Enter'); await page.waitForSelector('.det'); await page.waitForTimeout(150);
+    const f = await ae(page);
+    assert.ok(f.inCard, 'focus is on the card (heading or "חזרה לרשימה"), not lost on <body>');
+    await done(r);
+  });
+  test('QA2-2 keyboard: closing a card (Esc or "חזרה לרשימה") returns focus to its row', { todo: 'QA2-2 map-ux: src/template.html:813 (closeCard)' }, async () => {
+    const r = await go('/', { viewport: DESK, time: TUE });
+    const { page } = r;
+    await page.focus('#sbody .item:nth-of-type(3)'); const u = await page.evaluate(() => document.activeElement.dataset.u);
+    await page.keyboard.press('Enter'); await page.waitForSelector('.det');
+    await page.keyboard.press('Escape'); await page.waitForSelector('#sbody .item'); await page.waitForTimeout(150);
+    assert.equal((await ae(page)).u, u, 'Esc: focus back on the row');
+    await page.focus(`#sbody .item[data-u="${u}"]`); await page.keyboard.press('Enter'); await page.waitForSelector('.det');
+    await page.focus('#back'); await page.keyboard.press('Enter'); await page.waitForSelector('#sbody .item'); await page.waitForTimeout(150);
+    assert.equal((await ae(page)).u, u, '"חזרה לרשימה": focus back on the row');
+    await done(r);
+  });
+  test('QA2-3 "מתי?" day + hour: no hour that has passed today, no Friday hour from 14:00 (Shabbat)', { todo: 'QA2-3 map-ux: src/template.html:886-902 (whenDlg)' }, async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE_NIGHT });
+    const { page } = r;
+    await page.click('#cWhen'); await page.waitForSelector('#dlg.on');
+    const enabled = () => page.$$eval('#wTime option', o => o.filter(x => !x.disabled).map(x => +x.value));
+    const today = await enabled();
+    assert.ok(today.every(m => m >= 23 * 60 + 30), 'Tuesday 23:30, today: offered ' + today.slice(0, 3).map(m => m / 60));
+    await page.click('#dlg [data-day]:text-is("שישי")');
+    const fri = await enabled();
+    assert.ok(fri.every(m => m < 14 * 60), 'Friday: no hour from 14:00, offered up to ' + Math.max(...fri) / 60);
+    await done(r);
+  });
+  test('QA2-4 Back after a reload with a card and a dialog open does not open a card', { todo: 'QA2-4 map-ux: src/template.html:1038 (only the current entry is cleaned), :837' }, async () => {
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
+    const { page } = r;
+    await halfSheet(page);
+    await page.click('#sbody .item'); await page.waitForSelector('.det');
+    await page.click('#cWhen'); await page.waitForSelector('#dlg.on');
+    await page.reload(); await page.waitForSelector('#sbody .item'); await page.waitForTimeout(300);
+    await page.evaluate(() => history.back()); await page.waitForTimeout(600);
+    assert.ok(!(await page.evaluate(() => !!document.querySelector('#sbody .det'))), 'Back after the reload opened a card');
+    await done(r);
+  });
+  test('QA2-5 open-now header never says "0 פתוחים"', { todo: 'QA2-5 map-ux: src/template.html:546-548' }, async () => {
+    const r = await go('/', { viewport: PHONE, time: il(2026, 12, 1, 3, 0) });
+    const { page } = r;
+    await page.click('#cOpen'); await typeQ(page, 'סושי');
+    const s = await sub(page);
+    assert.ok(!/^0 /.test(s), 'header: ' + s);
+    await done(r);
+  });
+  test('QA2-6 "מתי?": the day "הצגה" will use is marked; on Motzei Shabbat "היום" is offered', { todo: 'QA2-6 map-ux: src/template.html:886, :898' }, async () => {
+    for (const t of [TUE, SAT_NIGHT]) {
+      const r = await go('/', { viewport: PHONE, time: t });
+      const { page } = r;
+      await page.click('#cWhen'); await page.waitForSelector('#dlg.on');
+      const on = await page.$$eval('#dlg [data-day].on', a => a.map(x => x.textContent));
+      assert.deepEqual(on, ['היום'], 'marked day at ' + t.toISOString());
+      await done(r);
+    }
+  });
+  test('QA2-7 search: the spelling "ירושלם" finds the Jerusalem places', { todo: 'QA2-7 map-ux / hours-shabbat (normText/termMatchers): src/template.html:476, src/logic.js normText' }, async () => {
+    const r = await go('/', { viewport: PHONE, time: TUE });
+    await typeQ(r.page, 'ירושלם');
+    const n = restaurants.filter(p => p.c === 'ירושלים').length;
+    assert.ok((await r.page.locator('#sbody .item').count()) >= 40 && n > 40, 'expected the ' + n + ' Jerusalem places, got: ' + await sub(r.page));
+    await done(r);
+  });
+
+  test('QA2-8 360px: the search placeholder is not cut ("…אוכל או רו")', { todo: 'QA2-8 design-system / map-ux: placeholder text vs .sbar width at 360px' }, async () => {
+    const r = await go('/', { viewport: PHONE360, mobile: true, time: TUE });
+    const fit = await r.page.evaluate(() => { const q = document.getElementById('q'), cs = getComputedStyle(q), c = document.createElement('canvas').getContext('2d');
+      c.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const w = c.measureText(q.placeholder).width;
+      return { w: Math.ceil(w), box: Math.floor(q.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) }; });
+    assert.ok(fit.w <= fit.box, 'placeholder ' + fit.w + 'px in a ' + fit.box + 'px field');
+    await done(r);
+  });
+
+  // passing checks from the stage 2 sweep, kept as regression tests
+  for (const dark of [false, true]) {
+    test('360×640 ' + (dark ? 'dark' : 'light') + ': no overflow, tap targets >= 44px (list, "מתי?", town, filter, longest card)', async () => {
+      const r = await go('/', { viewport: PHONE360, mobile: true, dark, time: FRI });
+      const { page } = r; await mapReady(page); await halfSheet(page); await page.waitForTimeout(300);
+      const found = [];
+      const probe = async label => { found.push(...(await page.evaluate(overflowProbe)).map(x => label + ': ' + x)); found.push(...(await page.evaluate(tapProbe)).filter(x => !x.inAttr).map(x => label + ': small ' + x.el + ' ' + x.text + ' ' + x.w + 'x' + x.h)); };
+      await probe('list');
+      for (const [btn, label] of [['#cWhen', 'when'], ['#ctaCity', 'town'], ['#fBtn', 'filter']]) { await page.click(btn); await page.waitForSelector('#dlg.on'); await page.waitForTimeout(300); await probe(label); await page.keyboard.press('Escape'); await page.waitForTimeout(150); }
+      const longest = restaurants.slice().sort((a, b) => b.h.length - a.h.length)[0];
+      await typeQ(page, longest.n); await page.click('#sbody .item'); await page.waitForSelector('.det'); await page.waitForTimeout(300); await probe('card');
+      assert.deepEqual([...new Set(found)], []);
+      await done(r);
+    });
+  }
+  test('Friday after candle lighting and Motzei Shabbat: no candle banner, statuses from published hours, no errors', async () => {
+    const r = await go('/', { viewport: PHONE, time: FRI_EVE, ls: { kl3_f: JSON.stringify({ open: false, hc: [], t: [], food: '', kind: 'מסעדה', city: 'ירושלים', sort: 'dist' }) } });
+    const { page } = r;
+    assert.equal(await page.locator('#sbody .shab').count(), 0, 'no candle-lighting banner after candle lighting');
+    const nOpen = restaurants.filter(p => /[ys]/.test(st(p, FRI_EVE).s) && (p.c === 'ירושלים' || (cityLL(p.c) && LLof(p) && km(cityLL('ירושלים'), LLof(p)) <= 12))).length;
+    assert.equal(await page.textContent('#cOpenT'), 'פתוח עכשיו' + (nOpen ? ' · ' + nOpen : ''));
+    await page.click('#cWhen'); await page.waitForSelector('#dlg.on');
+    assert.deepEqual(await page.$$eval('#dlg [data-at], #dlg [data-now]', x => x.map(b => b.textContent)), ['עכשיו'], 'no quick pick on Friday evening');
+    await done(r);
+    const r2 = await go('/', { viewport: PHONE, time: SAT_NIGHT });
+    assert.equal(await r2.page.isVisible('#cFri'), false, '"פתוח בשישי" hidden on Saturday night');
+    const all = restaurants.filter(p => /[ys]/.test(st(p, SAT_NIGHT).s)).length;
+    assert.equal(await r2.page.textContent('#cOpenT'), 'פתוח עכשיו · ' + all);
+    await done(r2);
+  });
+  test('privacy line, iPhone guide text, no "בקרוב" / "מנהג" / "בחצות" in the page', async () => {
+    const r = await go('/', { viewport: PHONE, mobile: true, time: TUE, ua: IPHONE_UA });
+    const { page } = r; await halfSheet(page);
+    assert.match(await page.textContent('.foot'), /פרטיות: המיקום שלך משמש רק במכשיר, לחישוב המרחק\. הוא לא נשלח ולא נשמר\. אריחי המפה של האזור שבמסך נטענים מ-OpenFreeMap, והנתונים מ-GitHub\. אין מעקב ואין פרסומות\./);
+    await page.click('#inst'); await page.waitForSelector('#dlg.on');
+    const g = await page.textContent('#dlg');
+    for (const s of ['הוספה למסך הבית', 'לוחצים על כפתור השיתוף', 'אם הכפתור לא מופיע, לוחצים קודם על ⋯', 'בוחרים "הוספה למסך הבית"', 'לוחצים "הוספה"']) assert.ok(g.includes(s), 'guide: ' + s);
+    const html = await page.content();
+    assert.ok(!/בקרוב|מנהג|בחצות/.test(html));
+    await done(r);
+  });
+});
