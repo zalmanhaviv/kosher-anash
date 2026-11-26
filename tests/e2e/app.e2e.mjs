@@ -972,12 +972,13 @@ describe('S2-1 map-ux', () => {
 
 // ================= stage 2 QA (docs/qa/stage2.md) =================
 // Known bugs are `todo`: they run and report, but do not fail CI. When a bug is fixed, remove its `todo`.
+// QA2-2 … QA2-8 were fixed in S2-6: their tests guard now.
 describe('stage 2 QA', () => {
   const PHONE360 = { width: 360, height: 640 };
   const SAT_NIGHT = il(2026, 11, 28, 20, 0), FRI_EVE = il(2026, 11, 27, 17, 0);
   const ae = page => page.evaluate(() => { const a = document.activeElement; return { body: !a || a === document.body, inCard: !!(a && a.closest && a.closest('.det')), u: a && a.dataset ? a.dataset.u || '' : '' }; });
 
-  test('QA2-2 keyboard: opening a card moves focus into it', { todo: 'QA2-2 map-ux: src/template.html:592-628 (detail)' }, async () => {
+  test('QA2-2 keyboard: opening a card moves focus into it', async () => {
     const r = await go('/', { viewport: DESK, time: TUE });
     const { page } = r;
     await page.focus('#sbody .item'); await page.keyboard.press('Enter'); await page.waitForSelector('.det'); await page.waitForTimeout(150);
@@ -985,7 +986,7 @@ describe('stage 2 QA', () => {
     assert.ok(f.inCard, 'focus is on the card (heading or "חזרה לרשימה"), not lost on <body>');
     await done(r);
   });
-  test('QA2-2 keyboard: closing a card (Esc or "חזרה לרשימה") returns focus to its row', { todo: 'QA2-2 map-ux: src/template.html:813 (closeCard)' }, async () => {
+  test('QA2-2 keyboard: closing a card (Esc or "חזרה לרשימה") returns focus to its row', async () => {
     const r = await go('/', { viewport: DESK, time: TUE });
     const { page } = r;
     await page.focus('#sbody .item:nth-of-type(3)'); const u = await page.evaluate(() => document.activeElement.dataset.u);
@@ -997,7 +998,7 @@ describe('stage 2 QA', () => {
     assert.equal((await ae(page)).u, u, '"חזרה לרשימה": focus back on the row');
     await done(r);
   });
-  test('QA2-3 "מתי?" day + hour: no hour that has passed today, no Friday hour from 14:00 (Shabbat)', { todo: 'QA2-3 map-ux: src/template.html:886-902 (whenDlg)' }, async () => {
+  test('QA2-3 "מתי?" day + hour: no hour that has passed today, no Friday hour from 14:00 (Shabbat)', async () => {
     const r = await go('/', { viewport: PHONE, time: TUE_NIGHT });
     const { page } = r;
     await page.click('#cWhen'); await page.waitForSelector('#dlg.on');
@@ -1009,7 +1010,7 @@ describe('stage 2 QA', () => {
     assert.ok(fri.every(m => m < 14 * 60), 'Friday: no hour from 14:00, offered up to ' + Math.max(...fri) / 60);
     await done(r);
   });
-  test('QA2-4 Back after a reload with a card and a dialog open does not open a card', { todo: 'QA2-4 map-ux: src/template.html:1038 (only the current entry is cleaned), :837' }, async () => {
+  test('QA2-4 Back after a reload with a card and a dialog open does not open a card', async () => {
     const r = await go('/', { viewport: PHONE, mobile: true, time: TUE });
     const { page } = r;
     await halfSheet(page);
@@ -1020,7 +1021,7 @@ describe('stage 2 QA', () => {
     assert.ok(!(await page.evaluate(() => !!document.querySelector('#sbody .det'))), 'Back after the reload opened a card');
     await done(r);
   });
-  test('QA2-5 open-now header never says "0 פתוחים"', { todo: 'QA2-5 map-ux: src/template.html:546-548' }, async () => {
+  test('QA2-5 open-now header never says "0 פתוחים"', async () => {
     const r = await go('/', { viewport: PHONE, time: il(2026, 12, 1, 3, 0) });
     const { page } = r;
     await page.click('#cOpen'); await typeQ(page, 'סושי');
@@ -1028,7 +1029,7 @@ describe('stage 2 QA', () => {
     assert.ok(!/^0 /.test(s), 'header: ' + s);
     await done(r);
   });
-  test('QA2-6 "מתי?": the day "הצגה" will use is marked; on Motzei Shabbat "היום" is offered', { todo: 'QA2-6 map-ux: src/template.html:886, :898' }, async () => {
+  test('QA2-6 "מתי?": the day "הצגה" will use is marked; on Motzei Shabbat "היום" is offered', async () => {
     for (const t of [TUE, SAT_NIGHT]) {
       const r = await go('/', { viewport: PHONE, time: t });
       const { page } = r;
@@ -1038,7 +1039,7 @@ describe('stage 2 QA', () => {
       await done(r);
     }
   });
-  test('QA2-7 search: the spelling "ירושלם" finds the Jerusalem places', { todo: 'QA2-7 map-ux / hours-shabbat (normText/termMatchers): src/template.html:476, src/logic.js normText' }, async () => {
+  test('QA2-7 search: the spelling "ירושלם" finds the Jerusalem places', async () => {
     const r = await go('/', { viewport: PHONE, time: TUE });
     await typeQ(r.page, 'ירושלם');
     const n = restaurants.filter(p => p.c === 'ירושלים').length;
@@ -1046,7 +1047,7 @@ describe('stage 2 QA', () => {
     await done(r);
   });
 
-  test('QA2-8 360px: the search placeholder is not cut ("…אוכל או רו")', { todo: 'QA2-8 design-system / map-ux: placeholder text vs .sbar width at 360px' }, async () => {
+  test('QA2-8 360px: the search placeholder is not cut ("…אוכל או רו")', async () => {
     const r = await go('/', { viewport: PHONE360, mobile: true, time: TUE });
     const fit = await r.page.evaluate(() => { const q = document.getElementById('q'), cs = getComputedStyle(q), c = document.createElement('canvas').getContext('2d');
       c.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const w = c.measureText(q.placeholder).width;
