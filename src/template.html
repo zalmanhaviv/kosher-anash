@@ -532,7 +532,18 @@ function detail(p, keepScroll) {
 }
 
 // ---------- bottom sheet (mobile) ----------
-const SNAP = { peek: () => innerHeight - 168, half: () => innerHeight * 0.45, full: () => 64 };
+// full height starts under the search/chips bar, measured (offline bar, text zoom, resize), never a fixed 64px (QA1-1)
+let topGap = 64;
+const tok = n => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n)) || 0;
+const DESK_TOP = tok('--desk-top');
+function measureTop() {
+  const tb = document.querySelector('.topbar'), r = tb.getBoundingClientRect(), root = document.documentElement.style;
+  topGap = Math.ceil(r.bottom + tok('--s2'));
+  // --sheet-gap is measured from below the safe area (the sheet adds --st itself); the bar sits --s3 under it
+  root.setProperty('--sheet-gap', Math.ceil(tb.offsetHeight + tok('--s3') + tok('--s2')) + 'px');
+  root.setProperty('--desk-top', Math.max(DESK_TOP, Math.ceil(r.bottom + tok('--s3'))) + 'px');
+}
+const SNAP = { peek: () => innerHeight - 168, half: () => Math.max(innerHeight * 0.45, topGap), full: () => topGap };
 let snapName = 'peek';
 const wide = () => matchMedia('(min-width:900px)').matches;
 function sheetY(name) { const h = $('sheet').offsetHeight; return Math.max(0, h - (innerHeight - SNAP[name]())); }
@@ -726,7 +737,9 @@ $('fBtn').onclick = filters;
 $('cWhen').onclick = whenDlg;
 $('meBtn').onclick = () => ME && map ? ease({ center:[ME.lng, ME.lat], zoom:15 }) : gps();
 $('sbody').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) return detail(PLACES[+it.dataset.id]); const rc = e.target.closest('[data-rec]'); if (rc) { const p = byU(rc.dataset.rec); if (p) detail(p); } });
-addEventListener('resize', () => { snap(snapName); map && map.resize(); });
+addEventListener('resize', () => { measureTop(); snap(snapName); map && map.resize(); });
+measureTop();
+if (window.ResizeObserver) new ResizeObserver(() => { const g = topGap; measureTop(); if (g !== topGap) snap(snapName); }).observe(document.querySelector('.topbar'));
 setInterval(() => document.visibilityState === 'visible' && sel == null && render(), 60000);
 
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); INST = e; render(); });
