@@ -21,3 +21,32 @@ jobs:
           for tz in Asia/Jerusalem America/New_York UTC; do TZ=$tz node --test tests/*.test.mjs; done
       - name: Build
         run: python3 scripts/build.py
+  e2e:
+    # End-to-end tests of the built app in Chrome (tests/e2e). The tests themselves use no network:
+    # every request is answered locally (dist/, blank map tiles, the repo's data/). Network is used only
+    # to install Playwright and, on a cache miss, the vendor map library (scripts/fetch_vendor.sh).
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Vendor map library (cached)
+        id: vendor
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: vendor-${{ hashFiles('scripts/fetch_vendor.sh') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        run: sh scripts/fetch_vendor.sh
+      - name: Build
+        run: python3 scripts/build.py
+      - name: Playwright library (uses the runner's Google Chrome)
+        run: npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.63.0
+      - name: E2E (phone 390 light/dark, desktop 1280; clock frozen)
+        timeout-minutes: 4
+        run: node --test --test-concurrency=1 tests/e2e/app.e2e.mjs
